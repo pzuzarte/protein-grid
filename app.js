@@ -43,6 +43,8 @@ const state = {
   mapping: null,
   reading: null,
   dump: null,
+  teach: null,
+  readMap: null,
   page: 0,
   pageBars: 1,
   windowStart: 0,
@@ -91,7 +93,7 @@ function saveSoon() {
     const saved = {};
     for (const key of ["root", "scale", "moveNotes", "slots", "current", "bpm", "channel", "chord",
       "newLength", "lowOctave", "span", "showAll", "baseResolution", "triplets", "view", "sounds", "mappings",
-      "chain", "chainOn", "showLane", "laneParam"]) {
+      "chain", "chainOn", "showLane", "laneParam", "readMap"]) {
       saved[key] = state[key];
     }
     try {
@@ -1352,18 +1354,16 @@ const DUMP_QUIET_MS = 1500; // A dump is several messages, so it's done once the
 const DUMP_WAIT_MS = 120000;
 const hex = (bytes) => [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(" ");
 
+const SEND_HINT = "On the Protein, press Presets, open the Actions menu, and choose Send.";
+
 // SysEx needs its own permission, so it's only asked for when reading.
-async function startReading() {
-  if (state.reading) {
-    stopReading("Stopped waiting for a sound dump.");
-    return;
-  }
+async function allowSysex() {
   if (!state.midi || !state.midi.sysexEnabled) {
     try {
       state.midi = await navigator.requestMIDIAccess({ sysex: true });
     } catch (error) {
       setStatus(`Chrome didn't allow SysEx (${error.name}). Click the icon left of the address, allow MIDI devices with SysEx, then try again.`, true);
-      return;
+      return false;
     }
     state.midi.onstatechange = refreshPorts;
     state.input = null;
@@ -1371,11 +1371,24 @@ async function startReading() {
   }
   if (!state.input) {
     setStatus("The Protein isn't connected, so there's nothing to read from.", true);
-    return;
+    return false;
   }
+  return true;
+}
+
+function listen(message) {
   state.reading = { messages: [], quiet: null, giveUp: window.setTimeout(() => stopReading("No sound dump arrived. Try again, and check the Protein is on the same USB connection.", true), DUMP_WAIT_MS) };
   $("read-protein").textContent = "Stop waiting";
-  setStatus("Waiting for the Protein. On it, press Presets, open the Actions menu, and choose Send.");
+  setStatus(message);
+}
+
+async function startReading() {
+  if (state.reading) {
+    stopReading("Stopped waiting for a sound dump.");
+    return;
+  }
+  if (!(await allowSysex())) return;
+  listen(`Waiting for the Protein. ${SEND_HINT}`);
 }
 
 function collectDump(data) {
@@ -1389,10 +1402,17 @@ function collectDump(data) {
 function finishDump() {
   const { messages } = state.reading;
   state.dump = { messages, at: new Date() };
-  const bytes = messages.reduce((total, message) => total + message.length, 0);
-  const sizes = [...new Set(messages.map((message) => message.length))].join(", ");
-  stopReading(`Received a sound dump: ${messages.length} messages, ${bytes} bytes (message sizes ${sizes}). It starts ${hex(messages[0].slice(0, 8))}. Click Save dump to keep it.`);
   $("save-dump").hidden = false;
+  let dump;
+  try {
+    dump = ProteinDump.parse(messages);
+  } catch (error) {
+    stopReading(`Couldn't read the sound dump: ${error.message}`, true);
+    return;
+  }
+  stopReading("");
+  if (state.teach) teachStep(dump);
+  else showDump(dump);
 }
 
 function stopReading(message, isError = false) {
@@ -1402,7 +1422,98 @@ function stopReading(message, isError = false) {
   }
   state.reading = null;
   $("read-protein").textContent = "Read from Protein";
+  if (!message && state.teach) return;
+  if (state.teach && isError) endTeaching();
   setStatus(message, isError);
+}
+
+// The sliders show the sound the Protein sent. Nothing is sent back, as it already has it.
+function showDump(dump) {
+  if (!state.readMap) {
+    setStatus(`Received "${dump.name}". Click Teach reading once, and after that the sliders follow what the Protein sends.`);
+    return;
+  }
+  const values = ProteinDump.read(dump.values, state.readMap.map, state.readMap.fx);
+  resetVary();
+  Object.assign(state.values, values);
+  renderParams();
+  saveSoon();
+  setStatus(`Read "${dump.name}" from the Protein: ${Object.keys(values).length} settings.`);
+}
+
+/* ---------- Teaching the page to read dumps ---------- */
+
+// The two Sends: one keeps the current sound, and one shows where each taught value went.
+async function startTeaching() {
+  if (state.teach) {
+    endTeaching("Stopped teaching. Nothing was changed.");
+    return;
+  }
+  const ids = ProteinParams.ALL.map((param) => param.id).filter((id) => state.mappings[id] !== undefined);
+  if (!ids.length) {
+    setStatus("Map some settings first, as teaching works through their controllers.", true);
+    return;
+  }
+  if (!state.output) {
+    setStatus("No MIDI output connected. Connect the Protein first.", true);
+    return;
+  }
+  if (!(await allowSysex())) return;
+  if (state.reading) stopReading("");
+  state.teach = { ids, before: null, sent: null };
+  renderTeacher();
+  listen(`Teaching, step 1 of 2. ${SEND_HINT}`);
+}
+
+function teachStep(dump) {
+  const teach = state.teach;
+  if (!teach.before) {
+    teach.before = dump;
+    teach.sent = ProteinDump.teachValues(teach.ids);
+    const finished = applySound(teach.sent);
+    renderTeacher();
+    // Waits for the burst of controllers to be sent before asking for the second dump.
+    window.setTimeout(() => {
+      if (state.teach === teach) listen(`Teaching, step 2 of 2. The sound has changed on purpose. ${SEND_HINT}`);
+    }, Math.max(0, finished - performance.now()) + 200);
+    return;
+  }
+  const learned = ProteinDump.learn(teach.sent, teach.before.values, dump.values);
+  state.readMap = { map: learned.map, fx: learned.fx };
+  // Puts the sound back as it was before teaching.
+  const original = ProteinDump.read(teach.before.values, learned.map, learned.fx);
+  endTeaching();
+  resetVary();
+  applySound(original);
+  saveSoon();
+  const taught = teach.ids.length - learned.problems.length;
+  const names = learned.problems.map((id) => `${SECTION_OF.get(id).name} ${ProteinParams.BY_ID.get(id).name}`);
+  const missed = names.length ? ` Couldn't find ${names.join(", ")}, so they won't be read.` : "";
+  setStatus(`Taught ${taught} of ${teach.ids.length} settings, and put "${teach.before.name}" back. Read from Protein now updates the sliders.${missed}`, Boolean(names.length));
+}
+
+function endTeaching(message) {
+  state.teach = null;
+  if (state.reading) {
+    window.clearTimeout(state.reading.quiet);
+    window.clearTimeout(state.reading.giveUp);
+    state.reading = null;
+    $("read-protein").textContent = "Read from Protein";
+  }
+  renderTeacher();
+  if (message) setStatus(message);
+}
+
+function renderTeacher() {
+  const teach = state.teach;
+  $("teacher").hidden = !teach;
+  $("teach-read").textContent = teach ? "Stop teaching" : state.readMap ? "Teach again" : "Teach reading";
+  if (!teach) return;
+  const second = Boolean(teach.before);
+  $("teacher-step").textContent = second ? "Step 2 of 2" : "Step 1 of 2";
+  $("teacher-text").textContent = second
+    ? `The page has set your ${teach.ids.length} mapped settings to test values, so the sound is different for now. Press Send on the Protein again. Your sound comes back after.`
+    : "On the Protein, press Presets, open the Actions menu and choose Send. This keeps a copy of your current sound, so it can be put back afterwards.";
 }
 
 // The dump exactly as it arrived, as a .syx file that SysEx tools can send back.
@@ -2086,6 +2197,8 @@ function bindControls() {
   $("map-start").addEventListener("click", () => startMapping(ProteinParams.MAPPING_ORDER.filter((id) => state.mappings[id] === undefined)));
   $("map-send").addEventListener("click", sendMapping);
   $("read-protein").addEventListener("click", startReading);
+  $("teach-read").addEventListener("click", startTeaching);
+  $("teacher-stop").addEventListener("click", () => endTeaching("Stopped teaching. Your sound may still have the test values, so use Hear original or load a preset."));
   $("save-dump").addEventListener("click", saveDump);
   $("map-skip").addEventListener("click", nextMapping);
   $("map-forget").addEventListener("click", forgetMapping);
@@ -2156,6 +2269,7 @@ async function start() {
   $("lane-toggle").setAttribute("aria-pressed", String(state.showLane));
   renderSounds();
   renderAll();
+  renderTeacher();
   setView(state.view);
   setStatus("Choose a key, then click or drag on the grid to add notes.");
   await initMidi();

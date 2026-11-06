@@ -233,6 +233,7 @@ button.primary { min-width: 68px; background: var(--accent); border-color: var(-
 .mapper-head h2 { margin: 0; font-size: 15px; }
 .mapper-progress { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .mapper-steps { margin: 8px 0 10px; padding-left: 22px; line-height: 1.5; }
+.mapper-text { margin: 8px 0 10px; line-height: 1.5; }
 .mapper-steps kbd { padding: 1px 5px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; font: 12px ui-monospace, Menlo, monospace; }
 .mapper-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .param input[type="range"] { width: 100%; min-width: 0; accent-color: var(--accent); }
