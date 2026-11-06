@@ -41,6 +41,8 @@ const state = {
   values: {},
   mappings: {},
   mapping: null,
+  reading: null,
+  dump: null,
   page: 0,
   pageBars: 1,
   windowStart: 0,
@@ -1330,14 +1332,90 @@ function refreshPorts() {
 }
 
 // A mapped controller coming back from the Protein, or from a controller passed through
-// it, updates the matching slider here.
+// it, updates the matching slider here. A sound dump is collected while reading.
 function handleMidiInput(event) {
+  if (event.data[0] === 0xF0) {
+    collectDump(event.data);
+    return;
+  }
   const [status, first, second] = event.data;
   if ((status & 0x0F) !== state.channel || (status & 0xF0) !== 0xB0) return;
   const id = Object.keys(state.mappings).find((key) => state.mappings[key] === first);
   if (id === undefined) return;
   state.values[id] = second;
   updateParamControl(id);
+}
+
+/* ---------- Reading a sound dump ---------- */
+
+const DUMP_QUIET_MS = 1500; // A dump is several messages, so it's done once they stop.
+const DUMP_WAIT_MS = 120000;
+const hex = (bytes) => [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(" ");
+
+// SysEx needs its own permission, so it's only asked for when reading.
+async function startReading() {
+  if (state.reading) {
+    stopReading("Stopped waiting for a sound dump.");
+    return;
+  }
+  if (!state.midi || !state.midi.sysexEnabled) {
+    try {
+      state.midi = await navigator.requestMIDIAccess({ sysex: true });
+    } catch (error) {
+      setStatus(`Chrome didn't allow SysEx (${error.name}). Click the icon left of the address, allow MIDI devices with SysEx, then try again.`, true);
+      return;
+    }
+    state.midi.onstatechange = refreshPorts;
+    state.input = null;
+    refreshPorts();
+  }
+  if (!state.input) {
+    setStatus("The Protein isn't connected, so there's nothing to read from.", true);
+    return;
+  }
+  state.reading = { messages: [], quiet: null, giveUp: window.setTimeout(() => stopReading("No sound dump arrived. Try again, and check the Protein is on the same USB connection.", true), DUMP_WAIT_MS) };
+  $("read-protein").textContent = "Stop waiting";
+  setStatus("Waiting for the Protein. On it, press Presets, open the Actions menu, and choose Send.");
+}
+
+function collectDump(data) {
+  if (!state.reading) return;
+  state.reading.messages.push(Array.from(data));
+  window.clearTimeout(state.reading.quiet);
+  state.reading.quiet = window.setTimeout(finishDump, DUMP_QUIET_MS);
+  setStatus(`Receiving from the Protein: ${state.reading.messages.length} messages so far...`);
+}
+
+function finishDump() {
+  const { messages } = state.reading;
+  state.dump = { messages, at: new Date() };
+  const bytes = messages.reduce((total, message) => total + message.length, 0);
+  const sizes = [...new Set(messages.map((message) => message.length))].join(", ");
+  stopReading(`Received a sound dump: ${messages.length} messages, ${bytes} bytes (message sizes ${sizes}). It starts ${hex(messages[0].slice(0, 8))}. Click Save dump to keep it.`);
+  $("save-dump").hidden = false;
+}
+
+function stopReading(message, isError = false) {
+  if (state.reading) {
+    window.clearTimeout(state.reading.quiet);
+    window.clearTimeout(state.reading.giveUp);
+  }
+  state.reading = null;
+  $("read-protein").textContent = "Read from Protein";
+  setStatus(message, isError);
+}
+
+// The dump exactly as it arrived, as a .syx file that SysEx tools can send back.
+function saveDump() {
+  if (!state.dump) return;
+  const bytes = new Uint8Array(state.dump.messages.flat());
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+  const stamp = state.dump.at.toISOString().slice(0, 19).replace(/[T:]/g, "-");
+  link.download = `protein-dump-${stamp}.syx`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  setStatus(`Saved ${link.download} to your downloads.`);
 }
 
 function sendNote(note, velocity, atTime, lengthMs) {
@@ -2007,6 +2085,8 @@ function bindControls() {
   $("sound-name").addEventListener("keydown", (event) => { if (event.key === "Enter") saveSound(); });
   $("map-start").addEventListener("click", () => startMapping(ProteinParams.MAPPING_ORDER.filter((id) => state.mappings[id] === undefined)));
   $("map-send").addEventListener("click", sendMapping);
+  $("read-protein").addEventListener("click", startReading);
+  $("save-dump").addEventListener("click", saveDump);
   $("map-skip").addEventListener("click", nextMapping);
   $("map-forget").addEventListener("click", forgetMapping);
   $("map-stop").addEventListener("click", () => {

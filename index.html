@@ -173,6 +173,8 @@
   <section class="bar synth-bar" aria-label="Sound">
     <span id="map-count" class="pill"></span>
     <button id="map-start" class="primary" type="button" title="Walks you through mapping each setting on the Protein, one at a time">Set up controls</button>
+    <button id="read-protein" type="button" title="Waits for the Protein to send its current sound, from Presets, Actions, Send">Read from Protein</button>
+    <button id="save-dump" type="button" title="Save the sound dump the Protein sent, as a .syx file" hidden>Save dump</button>
     <div class="spacer"></div>
     <div class="vary-bar">
       <span class="group-label">Vary</span>
@@ -294,6 +296,7 @@
       <li>A slider shown faint hasn't been set from this page yet. The Protein can't report its settings, so the page doesn't know them until you move them or load a sound.</li>
       <li><b>Save sound</b> keeps the sliders' values in this browser under a name, and <b>Load</b> sends them back. Only the mapped settings are sent. These don't replace the Protein's own presets.</li>
       <li><b>Vary</b> nudges the known settings a little or a lot, leaving tuning, pan and volume alone. <b>Hear original</b> flips between the sound before you started and the new one.</li>
+      <li><b>Read from Protein</b> waits for the Protein to send its current sound: on the Protein, press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. Chrome asks for SysEx permission the first time. For now this only receives the dump and lets you save it with <b>Save dump</b>, while the format is worked out. It doesn't change the sliders yet.</li>
       <li>Mod slots' sources and targets, effect types and their deeper settings, and the arpeggiator and sequencer are set on the Protein.</li>
     </ul>
 
