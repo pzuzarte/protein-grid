@@ -231,14 +231,16 @@
     <div class="library-head">
       <h2 id="library-title">Sound library</h2>
       <div class="spacer"></div>
+      <button id="library-folder" type="button" title="Choose the folder on this computer where your sounds are saved">Choose library folder</button>
       <button id="library-add" class="primary" type="button" title="Waits for the Protein to send its current sound, and adds the whole sound to the library">Add from Protein</button>
       <button id="library-import" type="button" title="Add the sounds in a .syx file to the library">Import .syx</button>
-      <button id="library-export-all" type="button" title="Download every sound in the library as one .syx file">Export all</button>
+      <button id="library-export-all" type="button" title="Download every sound in the library as one .syx file, to share or send with other tools">Export all</button>
       <input id="library-import-file" type="file" accept=".syx,application/octet-stream" hidden>
     </div>
-    <p class="library-note">Whole sounds, exactly as the Protein sent them, kept in this browser. <b>Add from Protein</b> waits for you to press Presets, open the Actions menu and choose Send on the Protein. <b>Load settings</b> sends a sound's mapped settings, which works once Teach reading is done. <b>Send whole sound</b> sends the complete dump back. That hasn't been tried on a Protein yet.</p>
+    <p id="library-state" class="library-note"></p>
+    <p class="library-note">Whole sounds, exactly as the Protein sent them, each saved as a .syx file in your library folder. <b>Add from Protein</b> waits for you to press Presets, open the Actions menu and choose Send on the Protein. <b>Load settings</b> sends a sound's mapped settings, which works once Teach reading is done. <b>Send whole sound</b> sends the complete dump back. That hasn't been tried on a Protein yet.</p>
     <input id="library-search" type="search" placeholder="Search names" aria-label="Search sounds" spellcheck="false">
-    <p id="library-empty" class="library-note">No sounds yet. Add one from the Protein, or import a .syx file.</p>
+    <p id="library-empty" class="library-note">No sounds in this folder yet. Add one from the Protein, or import a .syx file.</p>
     <ul id="library-list" class="library-list"></ul>
   </section>
 </div>
@@ -329,17 +331,18 @@
       <li><b>Vary</b> nudges the known settings a little or a lot, leaving tuning, pan and volume alone. <b>Hear original</b> flips between the sound before you started and the new one.</li>
       <li><b>Read from Protein</b> updates the sliders from the Protein's current sound, such as after choosing a preset there. Click it, then on the Protein press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. Chrome asks for SysEx permission the first time. The Protein can't be asked for its sound, so it takes that press of Send each time.</li>
       <li><b>Teach reading</b> is needed once, after mapping, and again if you change mappings. It takes two presses of Send: the first keeps your sound, then the page sets each mapped setting to a test value, and the second shows where each one is in the Protein's dump. Your sound is put back afterwards. Settings it can't find are named in the status line. What it learns is kept in this browser.</li>
-      <li><b>Save dump</b> keeps the last sound the Protein sent as a .syx file, and <b>Add to library</b> adds it to the Library tab.</li>
+      <li><b>Save dump</b> keeps the last sound the Protein sent as a .syx file, and <b>Add to library</b> saves it in the Library tab's folder.</li>
       <li>Mod slots' sources and targets, effect types and their deeper settings, and the arpeggiator and sequencer are set on the Protein.</li>
     </ul>
 
     <h3>Library tab</h3>
     <ul>
-      <li>The library keeps whole sounds, every setting and layer, exactly as the Protein sent them. They're kept in this browser, separately from <b>Save sound</b> on the Synth tab, which only keeps the mapped settings.</li>
-      <li><b>Add from Protein</b> waits for a sound. On the Protein, press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. The sound's own name is used, and <b>Rename</b> changes it here only.</li>
+      <li>The library keeps whole sounds, every setting and layer, exactly as the Protein sent them. It's a folder on this computer that you choose with <b>Choose library folder</b>, and each sound is saved there as its own .syx file, named after the sound. That keeps them even if the browser's data is cleared, and your usual backups include them. Where each came from is kept in <b>library-info.json</b> in the same folder. After Chrome restarts, click <b>Allow library folder</b> to use it again.</li>
+      <li>This is separate from <b>Save sound</b> on the Synth tab, which only keeps the mapped settings, in this browser.</li>
+      <li><b>Add from Protein</b> waits for a sound. On the Protein, press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. The file is named after the sound, and <b>Rename</b> renames the file, not the sound on the Protein. .syx files you put in the folder yourself show up too.</li>
       <li><b>Load settings</b> sends the sound's mapped settings as controllers, and shows them on the Synth tab. It needs <b>Teach reading</b> to have been done. Settings that aren't mapped stay as they are on the Protein.</li>
       <li><b>Send whole sound</b> sends the complete dump back to the Protein. This hasn't been tried on a Protein yet. It may replace the sound you're playing, and it isn't known whether it also writes over a memory slot, so keep a copy of anything you want first.</li>
-      <li><b>Import .syx</b> adds every sound in a file, and <b>Export</b> and <b>Export all</b> download them. The library isn't part of <b>Back up</b>, so use <b>Export all</b> to keep a copy.</li>
+      <li><b>Import .syx</b> adds every sound in a file to the folder, and <b>Export all</b> downloads the whole library as one file.</li>
     </ul>
 
     <h3>Working in a key</h3>
@@ -390,6 +393,7 @@
 <script src="params.js"></script>
 <script src="dump.js"></script>
 <script src="library.js"></script>
+<script src="folder.js"></script>
 <script src="sync.js"></script>
 <script src="backup.js"></script>
 <script src="app.js"></script>

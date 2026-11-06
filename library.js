@@ -1,6 +1,6 @@
 "use strict";
 /* Whole Protein sounds for the library: each is the dump the Protein sent from Presets,
-   Actions, Send, kept byte for byte so it can be exported or sent back. A dump is several
+   Actions, Send, kept byte for byte in its own file so it can be sent back. A dump is several
    SysEx messages, each holding its count at byte 6 and its number, from 1, at byte 7.
    Files can hold several dumps one after another. */
 const ProteinLibrary = (() => {
@@ -43,26 +43,7 @@ const ProteinLibrary = (() => {
     return dumps;
   }
 
-  // A dump as text for storing in the browser, and back.
-  function toText(dump) {
-    let text = "";
-    for (const byte of dump.flat()) text += String.fromCharCode(byte);
-    return btoa(text);
-  }
-
-  function fromText(text) {
-    let bytes;
-    try {
-      bytes = Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
-    } catch (error) {
-      throw new Error("It has a damaged sound.");
-    }
-    const [dump, ...rest] = split(bytes);
-    if (!dump || rest.length) throw new Error("It has a damaged sound.");
-    return dump;
-  }
-
-  return { fromText, messages, split, toText };
+  return { messages, split };
 })();
 
 if (typeof module !== "undefined") module.exports = ProteinLibrary;

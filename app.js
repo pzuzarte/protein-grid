@@ -16,7 +16,6 @@ const DEFAULT_CHANNEL = 0; // Channel 1.
 const CC_ALL_SOUND_OFF = 120;
 const CC_ALL_NOTES_OFF = 123;
 const STORE_KEY = "protein-grid";
-const LIBRARY_KEY = "protein-grid-library";
 
 const $ = (id) => document.getElementById(id);
 
@@ -46,7 +45,6 @@ const state = {
   dump: null,
   teach: null,
   readMap: null,
-  library: [],
   librarySearch: "",
   sendWarned: false,
   page: 0,
@@ -1545,47 +1543,74 @@ function saveDump() {
 
 /* ---------- Library of whole sounds ---------- */
 
-function loadLibrary() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(LIBRARY_KEY) || "null");
-    if (Array.isArray(saved?.library)) state.library = saved.library.filter((item) => item && typeof item.name === "string" && typeof item.data === "string");
-  } catch (error) {
-    // A missing or unreadable library just means starting empty.
-  }
+// Library files each hold one whole sound.
+const library = SoundFolder.create({
+  db: "protein-grid-library",
+  check: (bytes) => {
+    const dumps = ProteinLibrary.split(bytes);
+    if (dumps.length !== 1) throw new Error("It isn't one Protein sound.");
+    ProteinDump.parse(dumps[0]);
+  },
+});
+
+async function openLibrary() {
+  await library.restore();
+  renderLibrary();
 }
 
-function saveLibrary() {
+async function chooseLibraryFolder() {
   try {
-    localStorage.setItem(LIBRARY_KEY, JSON.stringify({ library: state.library }));
-    return true;
+    if (!(await library.choose({ another: library.status === "ready" }))) return;
   } catch (error) {
-    setStatus("Couldn't save the library in this browser, as it may be full. Use Export all to keep a copy.", true);
-    return false;
+    setStatus(`Couldn't open that folder: ${error.message}`, true);
+    return;
   }
+  renderLibrary();
+  if (library.status === "ready") setStatus(`Using "${library.folder.name}" as the sound library: ${plural(library.items.length, "sound")}.`);
 }
 
+const plural = (count, word, many = `${word}s`) => `${count} ${count === 1 ? word : many}`;
 const today = () => new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
-// Adds a whole dump, unless the same one is already there. Returns whether it was added.
-function addToLibrary(messages, from, name, { quiet = false } = {}) {
-  const data = ProteinLibrary.toText(messages);
-  const same = state.library.find((item) => item.data === data);
+// Saving needs the folder, so this says what to do when it isn't ready.
+function libraryReady() {
+  if (library.status === "ready") return true;
+  const advice = {
+    unsupported: "Saving sounds needs a library folder, which needs Chrome or Edge on a computer.",
+    permission: "Click Allow library folder on the Library tab first, so the page can save to it.",
+    missing: "The library folder can't be found. Click Choose library folder on the Library tab.",
+    none: "Click Choose library folder on the Library tab first, to pick where your sounds are saved.",
+  };
+  setStatus(advice[library.status], true);
+  return false;
+}
+
+const sameBytes = (a, b) => a.length === b.length && a.every((byte, index) => byte === b[index]);
+
+// Saves a whole dump as a file, unless the same sound is already there. Returns whether it was added.
+async function addToLibrary(messages, from, { quiet = false } = {}) {
+  if (!libraryReady()) return false;
+  const bytes = messages.flat();
+  const same = library.items.find((item) => sameBytes(item.bytes, bytes));
   if (same) {
     if (!quiet) setStatus(`"${same.name}" is already in the library.`);
     return false;
   }
-  const soundName = (name || ProteinDump.parse(messages).name || "Untitled").slice(0, 60);
-  state.library.unshift({ id: newId(), name: soundName, from: `${from}, ${today()}`, data });
-  saveLibrary();
-  renderLibrary();
-  if (!quiet) setStatus(`Added "${soundName}" to the library.`);
+  try {
+    const name = await library.add(ProteinDump.parse(messages).name || "Untitled", bytes, { from: `${from}, ${today()}` });
+    if (!quiet) setStatus(`Saved "${name}.syx" in "${library.folder.name}".`);
+  } catch (error) {
+    setStatus(`Couldn't save it to the library folder: ${error.message}`, true);
+    return false;
+  } finally {
+    renderLibrary();
+  }
   return true;
 }
 
 function libraryDump(item) {
   try {
-    const messages = ProteinLibrary.fromText(item.data);
+    const [messages] = ProteinLibrary.split(item.bytes);
     return { messages, dump: ProteinDump.parse(messages) };
   } catch (error) {
     setStatus(`"${item.name}" can't be read: ${error.message}`, true);
@@ -1608,7 +1633,7 @@ function loadLibrarySettings(item) {
   state.varyLatest = { ...state.values };
   renderVary(false);
   saveSoon();
-  const sent = state.output ? `Sent ${Object.keys(values).length} mapped settings of "${item.name}".` : `Loaded "${item.name}" on the Synth tab, but no MIDI output is connected.`;
+  const sent = state.output ? `Sent ${plural(Object.keys(values).length, "mapped setting")} of "${item.name}".` : `Loaded "${item.name}" on the Synth tab, but no MIDI output is connected.`;
   setStatus(`${sent} Unmapped settings stay as they are on the Protein. Hear original on the Synth tab brings back the sound you had.`, !state.output);
 }
 
@@ -1651,9 +1676,8 @@ function downloadBytes(name, bytes) {
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
-const fileName = (name) => name.replace(/[^\w .-]+/g, "").trim() || "sound";
-
 async function importLibrary(file) {
+  if (!libraryReady()) return;
   const dumps = ProteinLibrary.split(new Uint8Array(await file.arrayBuffer())).filter((messages) => {
     try {
       ProteinDump.parse(messages);
@@ -1666,20 +1690,22 @@ async function importLibrary(file) {
     setStatus(`${file.name} has no complete Protein sounds.`, true);
     return;
   }
-  // Added last first, as each goes to the top, so they end up in the file's order.
-  const added = dumps.reverse().filter((messages) => addToLibrary(messages, file.name, undefined, { quiet: true })).length;
-  const skipped = dumps.length - added;
-  setStatus(`Added ${added} ${added === 1 ? "sound" : "sounds"} from ${file.name}.${skipped ? ` ${skipped} were already in the library.` : ""}`);
+  let added = 0;
+  for (const messages of dumps) {
+    if (await addToLibrary(messages, file.name, { quiet: true })) added += 1;
+    else if (library.status !== "ready") return;
+  }
+  const same = dumps.length - added;
+  setStatus(`Added ${plural(added, "sound")} from ${file.name}.${same ? ` ${same === 1 ? "1 was" : `${same} were`} already in the library, or couldn't be saved.` : ""}`);
 }
 
 function exportAllLibrary() {
-  if (!state.library.length) {
+  if (!library.items.length) {
     setStatus("The library is empty.", true);
     return;
   }
-  const bytes = state.library.flatMap((item) => libraryDump(item)?.messages.flat() ?? []);
-  downloadBytes(`protein-library-${new Date().toISOString().slice(0, 10)}.syx`, bytes);
-  setStatus(`Downloaded all ${state.library.length} sounds as one .syx file.`);
+  downloadBytes(`protein-library-${new Date().toISOString().slice(0, 10)}.syx`, library.items.flatMap((item) => [...item.bytes]));
+  setStatus(`Downloaded all ${plural(library.items.length, "sound")} as one .syx file.`);
 }
 
 function actionButton(label, title, onClick) {
@@ -1692,9 +1718,24 @@ function actionButton(label, title, onClick) {
 }
 
 function renderLibrary() {
+  const ready = library.status === "ready";
+  const folderState = {
+    unsupported: ["Choose library folder", "Saving sounds to a folder needs Chrome or Edge on a computer."],
+    none: ["Choose library folder", "Choose or create a folder on this computer for your sounds. Each sound is saved there as its own .syx file."],
+    permission: ["Allow library folder", `Allow the page to use "${library.folder?.name}" again.`],
+    missing: ["Choose library folder", `Couldn't read "${library.folder?.name}". Choose it again.`],
+    ready: ["Change folder", ""],
+  }[library.status];
+  $("library-folder").textContent = folderState[0];
+  $("library-folder").disabled = library.status === "unsupported";
+  const skipped = library.skipped ? ` ${library.skipped} files there aren't single Protein sounds, so they're left out.` : "";
+  $("library-state").textContent = ready ? `"${library.folder.name}": ${plural(library.items.length, "sound")}.${skipped}` : folderState[1];
+  for (const id of ["library-add", "library-import", "library-export-all", "library-search"]) $(id).disabled = !ready;
+
   const words = state.librarySearch.toLowerCase().split(/\s+/).filter(Boolean);
-  const shown = state.library.filter((item) => words.every((word) => `${item.name} ${item.from}`.toLowerCase().includes(word)));
-  $("library-empty").hidden = state.library.length > 0;
+  const fromOf = (item) => library.info[item.name]?.from || "";
+  const shown = ready ? library.items.filter((item) => words.every((word) => `${item.name} ${fromOf(item)}`.toLowerCase().includes(word))) : [];
+  $("library-empty").hidden = !ready || library.items.length > 0;
   $("library-list").replaceChildren(...shown.map((item) => {
     const row = document.createElement("li");
     row.className = "library-row";
@@ -1702,26 +1743,28 @@ function renderLibrary() {
     text.className = "library-name";
     text.textContent = item.name;
     const from = document.createElement("small");
-    from.textContent = item.from;
+    from.textContent = fromOf(item) || "Added to the folder by hand";
     text.append(from);
     row.append(text,
       actionButton("Load settings", "Send this sound's mapped settings to the Protein", () => loadLibrarySettings(item)),
       actionButton("Send whole sound", "Send the complete sound to the Protein. Not yet tried on a Protein.", () => sendWholeSound(item)),
-      actionButton("Rename", "Rename this sound in the library", () => {
+      actionButton("Rename", "Rename this sound and its file", async () => {
         const name = window.prompt("Rename this sound", item.name)?.trim();
         if (!name) return;
-        item.name = name.slice(0, 60);
-        saveLibrary();
+        try {
+          await library.rename(item, name);
+        } catch (error) {
+          setStatus(`Couldn't rename it: ${error.message}`, true);
+        }
         renderLibrary();
       }),
-      actionButton("Export", "Download this sound as a .syx file", () => {
-        const found = libraryDump(item);
-        if (found) downloadBytes(`${fileName(item.name)}.syx`, found.messages.flat());
-      }),
-      actionButton("Delete", "Remove this sound from the library", () => {
-        if (!window.confirm(`Delete "${item.name}" from the library?`)) return;
-        state.library = state.library.filter((other) => other !== item);
-        saveLibrary();
+      actionButton("Delete", "Delete this sound's file from the library folder", async () => {
+        if (!window.confirm(`Delete "${item.name}.syx" from the library folder?`)) return;
+        try {
+          await library.remove(item);
+        } catch (error) {
+          setStatus(`Couldn't delete it: ${error.message}`, true);
+        }
         renderLibrary();
       }));
     return row;
@@ -2402,7 +2445,10 @@ function bindControls() {
   $("dump-to-library").addEventListener("click", () => {
     if (state.dump) addToLibrary(state.dump.messages, "From the Protein");
   });
-  $("library-add").addEventListener("click", () => startReading(true));
+  $("library-folder").addEventListener("click", chooseLibraryFolder);
+  $("library-add").addEventListener("click", () => {
+    if (libraryReady()) startReading(true);
+  });
   $("library-import").addEventListener("click", () => $("library-import-file").click());
   $("library-import-file").addEventListener("change", (event) => {
     const [file] = event.target.files;
@@ -2471,7 +2517,6 @@ function bindControls() {
 
 async function start() {
   restore();
-  loadLibrary();
   fillSelects();
   bindControls();
   bindGridEvents();
@@ -2487,6 +2532,7 @@ async function start() {
   renderTeacher();
   setView(state.view);
   setStatus("Choose a key, then click or drag on the grid to add notes.");
+  openLibrary().catch((error) => setStatus(`Couldn't open the library folder: ${error.message}`, true));
   await initMidi();
 }
 

@@ -32,10 +32,3 @@ test("a dump missing a message is left out", () => {
   assert.equal(found.length, 1);
   assert.equal(ProteinDump.parse(found[0]).name, "Whole");
 });
-
-test("sounds survive being stored as text, and damaged text is refused", () => {
-  const original = dump("Keep", 4);
-  assert.deepEqual(ProteinLibrary.fromText(ProteinLibrary.toText(original)), original);
-  assert.throws(() => ProteinLibrary.fromText("not base64!"), /damaged sound/);
-  assert.throws(() => ProteinLibrary.fromText(ProteinLibrary.toText(original.slice(0, 2))), /damaged sound/);
-});
