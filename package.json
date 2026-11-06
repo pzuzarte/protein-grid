@@ -1,0 +1,8 @@
+{
+  "name": "protein-grid",
+  "private": true,
+  "description": "A key-locked pattern grid and sound editor for the Waldorf Protein.",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  }
+}

@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protein Grid</title>
+<link rel="stylesheet" href="style.css">
+<script>
+  // Set before the page draws, so it doesn't flash the other theme.
+  try { if (localStorage.getItem("protein-grid-theme") === "light") document.documentElement.dataset.theme = "light"; } catch {}
+</script>
+<!-- Counts visits anonymously. A fixed version with a checksum, and the tool works if it's blocked. -->
+<script data-goatcounter="https://pzuzarte.goatcounter.com/count"
+        async src="https://gc.zgo.at/count.v5.js"
+        crossorigin="anonymous"
+        integrity="sha384-atnOLvQb9t+jTSipvd75X2yginT4PjVbqDdlJAmxMm+wYElFmeR6EmLP5bYeoRVQ"></script>
+</head>
+<body>
+
+<header class="bar">
+  <h1>Protein Grid</h1>
+  <nav id="views" class="views" aria-label="Views">
+    <button type="button" data-view="grid">Grid</button>
+    <button type="button" data-view="synth">Synth</button>
+  </nav>
+  <div class="field" role="group" aria-labelledby="key-label">
+    <span id="key-label" class="group-label">Key</span>
+    <div id="roots" class="segmented"></div>
+  </div>
+  <label>Scale
+    <select id="scale"></select>
+  </label>
+  <label class="check" title="When on, changing the key moves your patterns into the new key. When off, notes stay where they are.">
+    <input id="move-notes" type="checkbox" checked> Move notes with key
+  </label>
+  <div class="spacer"></div>
+  <span id="midi-state" class="pill">MIDI: starting</span>
+  <button id="midi-retry" type="button" hidden>Allow MIDI</button>
+  <button id="theme-toggle" type="button" title="Switch between dark and light mode">Light mode</button>
+  <button id="help-open" type="button" title="Help (press ?)">Help</button>
+</header>
+
+<div id="grid-view" class="view">
+  <section class="bar slots-bar" aria-label="Patterns">
+    <span class="group-label">Pattern</span>
+    <div id="slots" class="slots"></div>
+    <div class="spacer"></div>
+    <label>Idea
+      <select id="generator"></select>
+    </label>
+    <button id="generate" type="button" title="Replaces this pattern with a new one in the key. Undo brings the old one back.">Generate</button>
+    <button id="undo" type="button" disabled>Undo</button>
+    <button id="duplicate" type="button" title="Copy this pattern to the next empty slot">Duplicate</button>
+    <button id="clear" type="button">Clear</button>
+  </section>
+
+  <section class="bar transport" aria-label="Transport and grid settings">
+    <button id="play" class="primary" type="button">Play</button>
+    <button id="stop-all" type="button" title="Stops playback and silences any stuck notes">Panic</button>
+    <label>BPM
+      <input id="bpm" type="number" min="20" max="300" step="0.1" value="120">
+    </label>
+    <label>Bars
+      <select id="bars">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="4" selected>4</option>
+        <option value="8">8</option>
+      </select>
+    </label>
+    <div class="field" role="group" aria-labelledby="steps-label">
+      <span id="steps-label" class="group-label">Steps</span>
+      <div id="steps" class="segmented">
+        <button type="button" data-value="480">1/8</button>
+        <button type="button" data-value="240">1/16</button>
+        <button type="button" data-value="120">1/32</button>
+      </div>
+      <button id="triplets" class="toggle" type="button" aria-pressed="false" title="Three steps where there were two. Press T to switch.">Triplets</button>
+    </div>
+    <div class="field" role="group" aria-labelledby="draw-label">
+      <span id="draw-label" class="group-label">Draw</span>
+      <div id="chords" class="segmented"></div>
+    </div>
+    <label title="How long a clicked step lasts. Drag from an empty step to draw any length.">Length
+      <select id="new-length">
+        <option value="step" selected>1 step</option>
+        <option value="beat">1 beat</option>
+        <option value="bar">1 bar</option>
+      </select>
+    </label>
+    <label>Octave
+      <select id="octave"></select>
+    </label>
+    <label>Rows
+      <select id="span">
+        <option value="1">1 oct</option>
+        <option value="2" selected>2 oct</option>
+        <option value="3">3 oct</option>
+      </select>
+    </label>
+    <label class="check" title="Show every note, not just the ones in the key.">
+      <input id="show-all" type="checkbox"> All notes
+    </label>
+  </section>
+
+  <section class="bar tools" aria-label="Pattern tools">
+    <div class="button-pair">
+      <button id="shift-left" type="button" title="Move the whole pattern one step earlier, wrapping around" aria-label="Move earlier">Shift &lt;</button>
+      <button id="shift-right" type="button" title="Move the whole pattern one step later, wrapping around" aria-label="Move later">Shift &gt;</button>
+    </div>
+    <div class="button-pair">
+      <button id="scale-down" type="button" title="Move every note down one step in the scale" aria-label="Scale step down">Scale -</button>
+      <button id="scale-up" type="button" title="Move every note up one step in the scale" aria-label="Scale step up">Scale +</button>
+    </div>
+    <div class="button-pair">
+      <button id="octave-down" type="button" title="Move every note in this pattern down an octave" aria-label="Octave down">Oct -</button>
+      <button id="octave-up" type="button" title="Move every note in this pattern up an octave" aria-label="Octave up">Oct +</button>
+    </div>
+    <div class="button-pair">
+      <button id="copy" type="button" title="Copy the chosen steps. Choose them by clicking or dragging along the step numbers.">Copy</button>
+      <button id="paste" type="button" title="Paste at the chosen step, replacing what's there, in this pattern or another" disabled>Paste</button>
+    </div>
+    <label title="Sets velocity on the chosen steps, or the whole pattern if none are chosen">Velocity
+      <input id="bulk-velocity" type="number" min="1" max="127" step="1" value="100">
+    </label>
+    <button id="velocity-set" type="button">Set</button>
+    <button id="lane-toggle" class="toggle" type="button" aria-pressed="false" title="Draw knob movements under the grid, for settings mapped on the Synth tab">Knobs</button>
+    <label title="Pattern numbers to play in order, such as 1 1 2 3">Chain
+      <input id="chain" type="text" maxlength="200" placeholder="1 1 2 3" spellcheck="false">
+    </label>
+    <label class="check" title="Play the chain when you press Play">
+      <input id="chain-on" type="checkbox"> On
+    </label>
+    <div class="spacer"></div>
+    <div class="button-pair">
+      <button id="backup" type="button" title="Save all 16 patterns, saved sounds and mappings to one file">Back up</button>
+      <button id="restore" type="button" title="Load all 16 patterns, saved sounds and mappings from a backup file">Restore</button>
+    </div>
+    <input id="restore-file" type="file" accept=".json,application/json" hidden>
+  </section>
+
+  <div class="workspace">
+    <div class="grid-column">
+      <div id="pager" class="pager" hidden>
+        <button id="page-prev" type="button" aria-label="Previous bars">&lsaquo;</button>
+        <span id="page-label" aria-live="polite"></span>
+        <button id="page-next" type="button" aria-label="Next bars">&rsaquo;</button>
+      </div>
+      <main id="grid-wrap" class="grid-wrap">
+        <div id="grid" class="grid"></div>
+        <div id="playhead" class="playhead" hidden></div>
+      </main>
+      <section id="lane" class="lane" aria-label="Knob movements" hidden>
+        <div class="lane-head">
+          <label>Knob
+            <select id="lane-cc"></select>
+          </label>
+          <button id="lane-clear" type="button" title="Remove this knob's movements from the pattern">Clear knob</button>
+          <label title="Copies every knob's movements in this pattern, replacing any the other pattern has">Copy all to
+            <select id="lane-copy-target" aria-label="Pattern to copy knob movements to"></select>
+          </label>
+          <button id="lane-copy" type="button" title="Copies every knob's movements in this pattern, replacing any the other pattern has">Copy</button>
+          <span class="lane-help">Drag to draw, Alt-drag to erase. * has movements. The line is where the knob rests.</span>
+        </div>
+        <canvas id="lane-canvas" class="lane-canvas" aria-label="Drawing area for knob movements"></canvas>
+      </section>
+    </div>
+  </div>
+  <p class="hint">Click: add or remove a step. Drag from an empty step: draw a note. Drag a note: change its length. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Click a note name to hear it. Click step numbers: choose steps. Space: play and stop. T: triplets.</p>
+</div>
+
+<div id="synth-view" class="view synth-view" hidden>
+  <section class="bar synth-bar" aria-label="Sound">
+    <span id="map-count" class="pill"></span>
+    <button id="map-start" class="primary" type="button" title="Walks you through mapping each setting on the Protein, one at a time">Set up controls</button>
+    <div class="spacer"></div>
+    <div class="vary-bar">
+      <span class="group-label">Vary</span>
+      <button id="vary-small" type="button" title="Nudge the known settings a little">A little</button>
+      <button id="vary-big" type="button" title="Nudge the known settings a lot">A lot</button>
+      <button id="vary-compare" type="button" aria-pressed="false" disabled>Hear original</button>
+    </div>
+    <label>Sounds
+      <select id="sound"></select>
+    </label>
+    <button id="sound-load" type="button" title="Send this saved sound to the Protein">Load</button>
+    <button id="sound-delete" type="button">Delete</button>
+    <input id="sound-name" type="text" maxlength="60" placeholder="Sound name" aria-label="Sound name" spellcheck="false">
+    <button id="sound-save" type="button" title="Keep the sliders' current values in this browser, under this name">Save sound</button>
+  </section>
+
+  <section id="mapper" class="mapper" aria-labelledby="mapper-title" hidden>
+    <div class="mapper-head">
+      <h2 id="mapper-title"></h2>
+      <span id="mapper-progress" class="mapper-progress"></span>
+    </div>
+    <ol class="mapper-steps">
+      <li id="mapper-where"></li>
+      <li>Press <kbd>Shift</kbd> + <kbd>Settings</kbd>, turn the Select encoder to <b>Map CC</b>, and press it.</li>
+      <li id="mapper-send-step"></li>
+    </ol>
+    <div class="mapper-actions">
+      <button id="map-send" class="primary" type="button"></button>
+      <button id="map-skip" type="button">Skip</button>
+      <button id="map-forget" type="button" title="Forget this mapping here. Delete it on the Protein too, under Shift + Settings, Mappings.">Forget mapping</button>
+      <button id="map-stop" type="button">Done</button>
+    </div>
+  </section>
+
+  <div id="synth-sections" class="synth-sections"></div>
+</div>
+
+<div id="note-editor" class="note-editor" role="dialog" aria-labelledby="editor-title" hidden>
+  <h2 id="editor-title"></h2>
+  <p id="editor-count" class="editor-count" hidden></p>
+  <label class="editor-row" for="edit-velocity">Velocity
+    <input id="edit-velocity-range" type="range" min="1" max="127" aria-label="Velocity slider">
+    <input id="edit-velocity" type="number" min="1" max="127" step="1">
+  </label>
+  <label class="editor-row" for="edit-length">Length
+    <span id="edit-length-steps" class="unit-note">ticks</span>
+    <input id="edit-length" type="number" min="1" step="1">
+  </label>
+  <label class="editor-row" for="edit-offset" title="How late the note plays after the start of the step. 960 ticks is one beat.">Timing
+    <span id="edit-offset-range" class="unit-note"></span>
+    <input id="edit-offset" type="number" min="0" step="1">
+  </label>
+  <label class="editor-row" for="edit-probability" title="The chance this note plays on each pass.">Probability
+    <span class="unit-note">%</span>
+    <input id="edit-probability" type="number" min="0" max="100" step="1">
+  </label>
+  <label class="editor-row" for="edit-substep" title="Plays the step's notes in quick repeats. o plays and - is silent.">Sub-step
+    <select id="edit-substep"></select>
+  </label>
+  <div class="editor-actions">
+    <button id="edit-hear" type="button">Hear</button>
+    <button id="edit-delete" type="button">Delete</button>
+    <button id="edit-done" class="primary" type="button">Done</button>
+  </div>
+</div>
+
+<footer class="bar foot">
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+  <div class="spacer"></div>
+  <label>MIDI output
+    <select id="output"></select>
+  </label>
+  <label title="The Protein's MIDI channel, set in its Settings.">Channel
+    <select id="channel"></select>
+  </label>
+  <label class="check" title="Sends MIDI clock, start and stop with playback. With Sync Source set to Extern on the Protein, its arpeggiator, sequencer and clocked LFOs follow this page's tempo.">
+    <input id="clock" type="checkbox"> Send clock
+  </label>
+  <label class="check" title="Plays together with S-1 Grid and MPC Grid when they're open in this browser. Play, stop and tempo are shared.">
+    <input id="sync" type="checkbox"> Sync
+  </label>
+  <span id="sync-peers" class="pill" role="status" hidden></span>
+  <button id="import" type="button" title="Replace this pattern with the notes from a MIDI file. Undo brings the old one back.">Import MIDI</button>
+  <input id="import-file" type="file" accept=".mid,.midi,audio/midi" hidden>
+  <button id="export" type="button" title="Download this pattern as a MIDI file">Export MIDI</button>
+</footer>
+
+<dialog id="help" class="help" aria-labelledby="help-title">
+  <div class="help-head">
+    <h2 id="help-title">Protein Grid help</h2>
+    <button id="help-close" type="button">Close</button>
+  </div>
+  <div class="help-body" tabindex="0">
+    <p>A pattern grid and sound editor for the Waldorf Protein. It runs in your browser and sends MIDI to the Protein. Your patterns, sounds and mappings stay on this computer. It needs a current Chrome or Edge on a computer. It's unofficial and not affiliated with Waldorf.</p>
+    <p>Visits to this page are counted anonymously with <a href="https://www.goatcounter.com/" target="_blank" rel="noopener">GoatCounter</a>, which uses no cookies. It never receives your patterns or sounds.</p>
+
+    <h3>Set up</h3>
+    <ol>
+      <li>Connect the Protein to your computer with its USB-C cable, and turn it on.</li>
+      <li>Allow MIDI access when asked. The MIDI badge turns green when the Protein is found. If it says MIDI blocked, click the icon to the left of the address, set <b>MIDI devices</b> to Allow, then click <b>Allow MIDI</b>.</li>
+      <li>Click a note name in the grid. You should hear it on the Protein.</li>
+      <li>Check that <b>Channel</b> at the bottom matches the Protein's MIDI channel in its Settings.</li>
+    </ol>
+
+    <h3>Mapping the Protein's settings</h3>
+    <ul>
+      <li>The Protein has no fixed MIDI controller numbers for its settings. Each one is mapped on the synth itself, so the <b>Synth</b> tab's sliders do nothing until their setting is mapped.</li>
+      <li><b>Set up controls</b> walks you through them one at a time, the most useful first. For each one: turn that setting on the Protein, press <kbd>Shift</kbd> + <kbd>Settings</kbd>, choose <b>Map CC</b> and press the Select encoder, then click <b>Send CC</b> here. The page picks a free controller number for it.</li>
+      <li>Sending also sets that setting to the slider's value, or the middle if it isn't known yet.</li>
+      <li><b>Skip</b> moves on without mapping, and <b>Done</b> stops. You can carry on later, and the mapped count shows how far you are. <b>Map</b> next to any slider maps just that one, or maps it again.</li>
+      <li>The Protein lists its mappings under <kbd>Shift</kbd> + <kbd>Settings</kbd>, <b>Mappings</b>, where you can delete one. <b>Forget mapping</b> only forgets it here.</li>
+      <li>The Protein gives no sign over MIDI that a mapping worked, so move the slider afterwards and check that the setting changes. If it doesn't, map it again.</li>
+      <li>Mappings are kept in this browser and in backups. Whether the Protein keeps them through a restart, or for every sound, hasn't been checked yet.</li>
+    </ul>
+
+    <h3>Synth tab</h3>
+    <ul>
+      <li>Moving a slider sends its setting straight away, even during playback. Values run from 0 to 127, and the Protein spreads that over the setting's own range, so its display shows the exact value. Settings with a middle point show 0 there.</li>
+      <li>A slider shown faint hasn't been set from this page yet. The Protein can't report its settings, so the page doesn't know them until you move them or load a sound.</li>
+      <li><b>Save sound</b> keeps the sliders' values in this browser under a name, and <b>Load</b> sends them back. Only the mapped settings are sent. These don't replace the Protein's own presets.</li>
+      <li><b>Vary</b> nudges the known settings a little or a lot, leaving tuning, pan and volume alone. <b>Hear original</b> flips between the sound before you started and the new one.</li>
+      <li>Mod slots' sources and targets, effect types and their deeper settings, and the arpeggiator and sequencer are set on the Protein.</li>
+    </ul>
+
+    <h3>Working in a key</h3>
+    <ul>
+      <li>Choose a <b>Key</b> and <b>Scale</b>. The grid only shows notes in that key, so anything you draw fits. <b>Move notes with key</b> moves your patterns into a new key when you change it. <b>All notes</b> shows every note.</li>
+      <li><b>Draw</b> places a single note, a power chord, a triad or a 7th, using notes from the key.</li>
+      <li><b>Idea</b> and <b>Generate</b> write a bassline, melody, arpeggio or chord pattern in the key, and <b>Undo</b> brings back the old one.</li>
+      <li><b>Shift</b> moves the whole pattern a step earlier or later, <b>Scale</b> moves every note a step through the scale, and <b>Oct</b> moves them an octave.</li>
+      <li>Click or drag along the <b>step numbers</b> to choose steps, then <b>Copy</b> and <b>Paste</b>. <b>Velocity</b> and <b>Set</b> change the chosen steps, or the whole pattern.</li>
+    </ul>
+
+    <h3>Mouse and keyboard</h3>
+    <table>
+      <tbody>
+        <tr><th scope="row">Click a step</th><td>Add or remove it. New steps use the <b>Length</b> setting.</td></tr>
+        <tr><th scope="row">Drag from an empty step</th><td>Draw one note as long as you drag. Hold <kbd>Alt</kbd> for single ticks.</td></tr>
+        <tr><th scope="row">Drag a note</th><td>Change where it ends, from its first step or its end marker. It moves in eighths of a step, or hold <kbd>Alt</kbd> for single ticks.</td></tr>
+        <tr><th scope="row"><kbd>Cmd</kbd>-drag across steps</th><td>Fill separate steps, or remove them when starting from a filled step.</td></tr>
+        <tr><th scope="row">Right-click a step</th><td>Edit velocity, length, timing, probability and sub-steps.</td></tr>
+        <tr><th scope="row">Shift-click a step</th><td>Cycle velocity: full, 70%, 40%.</td></tr>
+        <tr><th scope="row"><kbd>Space</kbd></th><td>Play and stop, unless you're typing in a text box.</td></tr>
+        <tr><th scope="row"><kbd>T</kbd></th><td>Turn triplets on or off.</td></tr>
+        <tr><th scope="row"><kbd>Cmd</kbd> or <kbd>Ctrl</kbd> + <kbd>Z</kbd></th><td>Undo.</td></tr>
+        <tr><th scope="row"><kbd>?</kbd> and <kbd>Esc</kbd></th><td>Open this help, and close it or the step editor.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Chains, knob movements and files</h3>
+    <ul>
+      <li><b>Sub-step</b>, in the step editor, plays a step in quick repeats, where <b>o</b> plays and <b>-</b> is silent.</li>
+      <li><b>Chain</b> takes pattern numbers such as <b>1 1 2 3</b>. Tick <b>On</b> and Play goes through them in order, looping.</li>
+      <li><b>Knobs</b> opens a lane under the grid to draw how a mapped setting moves through the pattern. Alt-drag erases, and <b>Copy all to</b> copies the movements to another pattern.</li>
+      <li>Patterns 1-16 are stored in this browser. <b>Back up</b> saves them with your saved sounds and mappings to one file, and <b>Restore</b> loads it back. <b>Export MIDI</b> and <b>Import MIDI</b> work with one pattern at a time.</li>
+      <li><b>Sync</b> plays this page together with <a href="https://pzuzarte.github.io/s1-grid/" target="_blank" rel="noopener">S-1 Grid</a> and <a href="https://pzuzarte.github.io/mpc-grid/" target="_blank" rel="noopener">MPC Grid</a> when they're open in the same browser. Play, stop and tempo are shared.</li>
+      <li><b>Send clock</b> sends MIDI clock with playback. With <b>Sync Source</b> set to Extern in the Protein's settings, its arpeggiator, sequencer and clocked LFOs follow this page's tempo.</li>
+    </ul>
+
+    <h3>If you hear nothing</h3>
+    <ul>
+      <li>Check that the MIDI badge is green, and reload the page if the Protein was off when it opened.</li>
+      <li>Check the channel, and the Protein's volume.</li>
+      <li>Use <b>Panic</b> if a note gets stuck.</li>
+    </ul>
+  </div>
+</dialog>
+
+<script src="music.js"></script>
+<script src="params.js"></script>
+<script src="sync.js"></script>
+<script src="backup.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
