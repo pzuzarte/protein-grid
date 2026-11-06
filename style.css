@@ -103,7 +103,7 @@ label.check { color: var(--text); }
 .group-label { color: var(--muted); font-size: 12px; }
 .field { display: inline-flex; align-items: center; gap: 6px; }
 
-select, input[type="number"], input[type="text"], button {
+select, input[type="number"], input[type="text"], input[type="search"], button {
   height: 30px;
   padding: 0 8px;
   color: var(--text);
@@ -284,3 +284,15 @@ button.primary { min-width: 68px; background: var(--accent); border-color: var(-
 .status.error { color: var(--error); }
 .hint { margin: 0; padding: 0 14px 6px; background: var(--panel); color: var(--muted); font-size: 12px; }
 
+
+/* Library tab */
+.library-view { overflow-y: auto; }
+.library-card { display: flex; flex-direction: column; gap: 8px; max-width: 980px; margin: 12px 14px 20px; padding: 10px 14px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.library-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.library-head h2 { margin: 0; font-size: 14px; }
+.library-note { margin: 0; color: var(--muted); font-size: 12px; }
+.library-list { margin: 0; padding: 0; list-style: none; }
+.library-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 5px 0; border-top: 1px solid var(--line); }
+.library-row button { height: 26px; padding: 0 8px; font-size: 12px; }
+.library-name { flex: 1; min-width: 160px; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.library-name small { display: block; color: var(--muted); font-size: 11px; }

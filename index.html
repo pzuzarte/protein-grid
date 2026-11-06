@@ -22,6 +22,7 @@
   <nav id="views" class="views" aria-label="Views">
     <button type="button" data-view="grid">Grid</button>
     <button type="button" data-view="synth">Synth</button>
+    <button type="button" data-view="library">Library</button>
   </nav>
   <div class="field" role="group" aria-labelledby="key-label">
     <span id="key-label" class="group-label">Key</span>
@@ -176,6 +177,7 @@
     <button id="read-protein" type="button" title="Waits for the Protein to send its current sound, from Presets, Actions, Send">Read from Protein</button>
     <button id="teach-read" type="button" title="Two presses of Send on the Protein teach the page where your mapped settings are in its sound dump">Teach reading</button>
     <button id="save-dump" type="button" title="Save the sound dump the Protein sent, as a .syx file" hidden>Save dump</button>
+    <button id="dump-to-library" type="button" title="Add the whole sound the Protein sent to the Library tab" hidden>Add to library</button>
     <div class="spacer"></div>
     <div class="vary-bar">
       <span class="group-label">Vary</span>
@@ -222,6 +224,23 @@
   </section>
 
   <div id="synth-sections" class="synth-sections"></div>
+</div>
+
+<div id="library-view" class="view library-view" hidden>
+  <section class="library-card" aria-labelledby="library-title">
+    <div class="library-head">
+      <h2 id="library-title">Sound library</h2>
+      <div class="spacer"></div>
+      <button id="library-add" class="primary" type="button" title="Waits for the Protein to send its current sound, and adds the whole sound to the library">Add from Protein</button>
+      <button id="library-import" type="button" title="Add the sounds in a .syx file to the library">Import .syx</button>
+      <button id="library-export-all" type="button" title="Download every sound in the library as one .syx file">Export all</button>
+      <input id="library-import-file" type="file" accept=".syx,application/octet-stream" hidden>
+    </div>
+    <p class="library-note">Whole sounds, exactly as the Protein sent them, kept in this browser. <b>Add from Protein</b> waits for you to press Presets, open the Actions menu and choose Send on the Protein. <b>Load settings</b> sends a sound's mapped settings, which works once Teach reading is done. <b>Send whole sound</b> sends the complete dump back. That hasn't been tried on a Protein yet.</p>
+    <input id="library-search" type="search" placeholder="Search names" aria-label="Search sounds" spellcheck="false">
+    <p id="library-empty" class="library-note">No sounds yet. Add one from the Protein, or import a .syx file.</p>
+    <ul id="library-list" class="library-list"></ul>
+  </section>
 </div>
 
 <div id="note-editor" class="note-editor" role="dialog" aria-labelledby="editor-title" hidden>
@@ -310,8 +329,17 @@
       <li><b>Vary</b> nudges the known settings a little or a lot, leaving tuning, pan and volume alone. <b>Hear original</b> flips between the sound before you started and the new one.</li>
       <li><b>Read from Protein</b> updates the sliders from the Protein's current sound, such as after choosing a preset there. Click it, then on the Protein press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. Chrome asks for SysEx permission the first time. The Protein can't be asked for its sound, so it takes that press of Send each time.</li>
       <li><b>Teach reading</b> is needed once, after mapping, and again if you change mappings. It takes two presses of Send: the first keeps your sound, then the page sets each mapped setting to a test value, and the second shows where each one is in the Protein's dump. Your sound is put back afterwards. Settings it can't find are named in the status line. What it learns is kept in this browser.</li>
-      <li><b>Save dump</b> keeps the last sound the Protein sent as a .syx file.</li>
+      <li><b>Save dump</b> keeps the last sound the Protein sent as a .syx file, and <b>Add to library</b> adds it to the Library tab.</li>
       <li>Mod slots' sources and targets, effect types and their deeper settings, and the arpeggiator and sequencer are set on the Protein.</li>
+    </ul>
+
+    <h3>Library tab</h3>
+    <ul>
+      <li>The library keeps whole sounds, every setting and layer, exactly as the Protein sent them. They're kept in this browser, separately from <b>Save sound</b> on the Synth tab, which only keeps the mapped settings.</li>
+      <li><b>Add from Protein</b> waits for a sound. On the Protein, press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. The sound's own name is used, and <b>Rename</b> changes it here only.</li>
+      <li><b>Load settings</b> sends the sound's mapped settings as controllers, and shows them on the Synth tab. It needs <b>Teach reading</b> to have been done. Settings that aren't mapped stay as they are on the Protein.</li>
+      <li><b>Send whole sound</b> sends the complete dump back to the Protein. This hasn't been tried on a Protein yet. It may replace the sound you're playing, and it isn't known whether it also writes over a memory slot, so keep a copy of anything you want first.</li>
+      <li><b>Import .syx</b> adds every sound in a file, and <b>Export</b> and <b>Export all</b> download them. The library isn't part of <b>Back up</b>, so use <b>Export all</b> to keep a copy.</li>
     </ul>
 
     <h3>Working in a key</h3>
@@ -361,6 +389,7 @@
 <script src="music.js"></script>
 <script src="params.js"></script>
 <script src="dump.js"></script>
+<script src="library.js"></script>
 <script src="sync.js"></script>
 <script src="backup.js"></script>
 <script src="app.js"></script>

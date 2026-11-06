@@ -16,6 +16,7 @@ const DEFAULT_CHANNEL = 0; // Channel 1.
 const CC_ALL_SOUND_OFF = 120;
 const CC_ALL_NOTES_OFF = 123;
 const STORE_KEY = "protein-grid";
+const LIBRARY_KEY = "protein-grid-library";
 
 const $ = (id) => document.getElementById(id);
 
@@ -45,6 +46,9 @@ const state = {
   dump: null,
   teach: null,
   readMap: null,
+  library: [],
+  librarySearch: "",
+  sendWarned: false,
   page: 0,
   pageBars: 1,
   windowStart: 0,
@@ -1045,14 +1049,16 @@ const paramControls = new Map();
 const SECTION_OF = new Map(ProteinParams.SECTIONS.flatMap((section) => section.params.map((param) => [param.id, section])));
 
 function setView(view) {
-  state.view = view === "synth" ? "synth" : "grid";
+  state.view = ["synth", "library"].includes(view) ? view : "grid";
   $("grid-view").hidden = state.view !== "grid";
   $("synth-view").hidden = state.view !== "synth";
+  $("library-view").hidden = state.view !== "library";
   for (const button of $("views").querySelectorAll("button")) {
     button.setAttribute("aria-current", String(button.dataset.view === state.view));
   }
   if (state.view === "grid") renderGrid();
-  else renderParams();
+  else if (state.view === "synth") renderParams();
+  else renderLibrary();
   saveSoon();
 }
 
@@ -1376,19 +1382,23 @@ async function allowSysex() {
   return true;
 }
 
-function listen(message) {
-  state.reading = { messages: [], quiet: null, giveUp: window.setTimeout(() => stopReading("No sound dump arrived. Try again, and check the Protein is on the same USB connection.", true), DUMP_WAIT_MS) };
-  $("read-protein").textContent = "Stop waiting";
+function listen(message, forLibrary = false) {
+  state.reading = { messages: [], quiet: null, forLibrary, giveUp: window.setTimeout(() => stopReading("No sound dump arrived. Try again, and check the Protein is on the same USB connection.", true), DUMP_WAIT_MS) };
+  $(forLibrary ? "library-add" : "read-protein").textContent = "Stop waiting";
   setStatus(message);
 }
 
-async function startReading() {
+async function startReading(forLibrary = false) {
   if (state.reading) {
     stopReading("Stopped waiting for a sound dump.");
     return;
   }
+  if (state.teach) {
+    setStatus("Finish or stop teaching first.", true);
+    return;
+  }
   if (!(await allowSysex())) return;
-  listen(`Waiting for the Protein. ${SEND_HINT}`);
+  listen(`Waiting for the Protein. ${SEND_HINT}`, forLibrary);
 }
 
 function collectDump(data) {
@@ -1400,9 +1410,10 @@ function collectDump(data) {
 }
 
 function finishDump() {
-  const { messages } = state.reading;
+  const { messages, forLibrary } = state.reading;
   state.dump = { messages, at: new Date() };
   $("save-dump").hidden = false;
+  $("dump-to-library").hidden = false;
   let dump;
   try {
     dump = ProteinDump.parse(messages);
@@ -1412,6 +1423,7 @@ function finishDump() {
   }
   stopReading("");
   if (state.teach) teachStep(dump);
+  else if (forLibrary) addToLibrary(messages, "From the Protein");
   else showDump(dump);
 }
 
@@ -1422,6 +1434,7 @@ function stopReading(message, isError = false) {
   }
   state.reading = null;
   $("read-protein").textContent = "Read from Protein";
+  $("library-add").textContent = "Add from Protein";
   if (!message && state.teach) return;
   if (state.teach && isError) endTeaching();
   setStatus(message, isError);
@@ -1499,6 +1512,7 @@ function endTeaching(message) {
     window.clearTimeout(state.reading.giveUp);
     state.reading = null;
     $("read-protein").textContent = "Read from Protein";
+    $("library-add").textContent = "Add from Protein";
   }
   renderTeacher();
   if (message) setStatus(message);
@@ -1527,6 +1541,191 @@ function saveDump() {
   link.click();
   URL.revokeObjectURL(link.href);
   setStatus(`Saved ${link.download} to your downloads.`);
+}
+
+/* ---------- Library of whole sounds ---------- */
+
+function loadLibrary() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LIBRARY_KEY) || "null");
+    if (Array.isArray(saved?.library)) state.library = saved.library.filter((item) => item && typeof item.name === "string" && typeof item.data === "string");
+  } catch (error) {
+    // A missing or unreadable library just means starting empty.
+  }
+}
+
+function saveLibrary() {
+  try {
+    localStorage.setItem(LIBRARY_KEY, JSON.stringify({ library: state.library }));
+    return true;
+  } catch (error) {
+    setStatus("Couldn't save the library in this browser, as it may be full. Use Export all to keep a copy.", true);
+    return false;
+  }
+}
+
+const today = () => new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+// Adds a whole dump, unless the same one is already there. Returns whether it was added.
+function addToLibrary(messages, from, name, { quiet = false } = {}) {
+  const data = ProteinLibrary.toText(messages);
+  const same = state.library.find((item) => item.data === data);
+  if (same) {
+    if (!quiet) setStatus(`"${same.name}" is already in the library.`);
+    return false;
+  }
+  const soundName = (name || ProteinDump.parse(messages).name || "Untitled").slice(0, 60);
+  state.library.unshift({ id: newId(), name: soundName, from: `${from}, ${today()}`, data });
+  saveLibrary();
+  renderLibrary();
+  if (!quiet) setStatus(`Added "${soundName}" to the library.`);
+  return true;
+}
+
+function libraryDump(item) {
+  try {
+    const messages = ProteinLibrary.fromText(item.data);
+    return { messages, dump: ProteinDump.parse(messages) };
+  } catch (error) {
+    setStatus(`"${item.name}" can't be read: ${error.message}`, true);
+    return null;
+  }
+}
+
+// Sends the settings the page knows how to read, as with a saved sound.
+function loadLibrarySettings(item) {
+  if (!state.readMap) {
+    setStatus("Click Teach reading on the Synth tab once first, so the page can find your mapped settings in a sound.", true);
+    return;
+  }
+  const found = libraryDump(item);
+  if (!found) return;
+  const values = ProteinDump.read(found.dump.values, state.readMap.map, state.readMap.fx);
+  state.varyOriginal = { ...state.values };
+  state.varyLatest = null;
+  applySound(values);
+  state.varyLatest = { ...state.values };
+  renderVary(false);
+  saveSoon();
+  const sent = state.output ? `Sent ${Object.keys(values).length} mapped settings of "${item.name}".` : `Loaded "${item.name}" on the Synth tab, but no MIDI output is connected.`;
+  setStatus(`${sent} Unmapped settings stay as they are on the Protein. Hear original on the Synth tab brings back the sound you had.`, !state.output);
+}
+
+// The dump exactly as it arrived, a message at a time, so the Protein can keep up.
+async function sendWholeSound(item) {
+  const found = libraryDump(item);
+  if (!found) return;
+  if (!state.sendWarned && !window.confirm("Sending a whole sound hasn't been tried on a Protein yet. It may replace the sound you're playing, and it isn't known whether it also writes over a memory slot. Keep a copy of anything you want first. Send it?")) return;
+  if (!(await allowSysex())) return;
+  if (!state.output) {
+    setStatus("No MIDI output connected. Connect the Protein first.", true);
+    return;
+  }
+  state.sendWarned = true;
+  let at = performance.now();
+  try {
+    for (const message of found.messages) {
+      state.output.send(message, at);
+      at += 40;
+    }
+  } catch (error) {
+    setStatus(`Sending failed: ${error.message}`, true);
+    return;
+  }
+  if (state.readMap) {
+    resetVary();
+    Object.assign(state.values, ProteinDump.read(found.dump.values, state.readMap.map, state.readMap.fx));
+    saveSoon();
+  }
+  setStatus(`Sent the whole of "${item.name}" to the Protein. Check whether it changed, and whether any memory slot did.`);
+}
+
+function downloadBytes(name, bytes) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: "application/octet-stream" }));
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+const fileName = (name) => name.replace(/[^\w .-]+/g, "").trim() || "sound";
+
+async function importLibrary(file) {
+  const dumps = ProteinLibrary.split(new Uint8Array(await file.arrayBuffer())).filter((messages) => {
+    try {
+      ProteinDump.parse(messages);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  });
+  if (!dumps.length) {
+    setStatus(`${file.name} has no complete Protein sounds.`, true);
+    return;
+  }
+  // Added last first, as each goes to the top, so they end up in the file's order.
+  const added = dumps.reverse().filter((messages) => addToLibrary(messages, file.name, undefined, { quiet: true })).length;
+  const skipped = dumps.length - added;
+  setStatus(`Added ${added} ${added === 1 ? "sound" : "sounds"} from ${file.name}.${skipped ? ` ${skipped} were already in the library.` : ""}`);
+}
+
+function exportAllLibrary() {
+  if (!state.library.length) {
+    setStatus("The library is empty.", true);
+    return;
+  }
+  const bytes = state.library.flatMap((item) => libraryDump(item)?.messages.flat() ?? []);
+  downloadBytes(`protein-library-${new Date().toISOString().slice(0, 10)}.syx`, bytes);
+  setStatus(`Downloaded all ${state.library.length} sounds as one .syx file.`);
+}
+
+function actionButton(label, title, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  button.title = title;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function renderLibrary() {
+  const words = state.librarySearch.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = state.library.filter((item) => words.every((word) => `${item.name} ${item.from}`.toLowerCase().includes(word)));
+  $("library-empty").hidden = state.library.length > 0;
+  $("library-list").replaceChildren(...shown.map((item) => {
+    const row = document.createElement("li");
+    row.className = "library-row";
+    const text = document.createElement("span");
+    text.className = "library-name";
+    text.textContent = item.name;
+    const from = document.createElement("small");
+    from.textContent = item.from;
+    text.append(from);
+    row.append(text,
+      actionButton("Load settings", "Send this sound's mapped settings to the Protein", () => loadLibrarySettings(item)),
+      actionButton("Send whole sound", "Send the complete sound to the Protein. Not yet tried on a Protein.", () => sendWholeSound(item)),
+      actionButton("Rename", "Rename this sound in the library", () => {
+        const name = window.prompt("Rename this sound", item.name)?.trim();
+        if (!name) return;
+        item.name = name.slice(0, 60);
+        saveLibrary();
+        renderLibrary();
+      }),
+      actionButton("Export", "Download this sound as a .syx file", () => {
+        const found = libraryDump(item);
+        if (found) downloadBytes(`${fileName(item.name)}.syx`, found.messages.flat());
+      }),
+      actionButton("Delete", "Remove this sound from the library", () => {
+        if (!window.confirm(`Delete "${item.name}" from the library?`)) return;
+        state.library = state.library.filter((other) => other !== item);
+        saveLibrary();
+        renderLibrary();
+      }));
+    return row;
+  }));
 }
 
 function sendNote(note, velocity, atTime, lengthMs) {
@@ -2196,10 +2395,25 @@ function bindControls() {
   $("sound-name").addEventListener("keydown", (event) => { if (event.key === "Enter") saveSound(); });
   $("map-start").addEventListener("click", () => startMapping(ProteinParams.MAPPING_ORDER.filter((id) => state.mappings[id] === undefined)));
   $("map-send").addEventListener("click", sendMapping);
-  $("read-protein").addEventListener("click", startReading);
+  $("read-protein").addEventListener("click", () => startReading(false));
   $("teach-read").addEventListener("click", startTeaching);
   $("teacher-stop").addEventListener("click", () => endTeaching("Stopped teaching. Your sound may still have the test values, so use Hear original or load a preset."));
   $("save-dump").addEventListener("click", saveDump);
+  $("dump-to-library").addEventListener("click", () => {
+    if (state.dump) addToLibrary(state.dump.messages, "From the Protein");
+  });
+  $("library-add").addEventListener("click", () => startReading(true));
+  $("library-import").addEventListener("click", () => $("library-import-file").click());
+  $("library-import-file").addEventListener("change", (event) => {
+    const [file] = event.target.files;
+    event.target.value = "";
+    if (file) importLibrary(file).catch((error) => setStatus(`Couldn't import ${file.name}: ${error.message}`, true));
+  });
+  $("library-export-all").addEventListener("click", exportAllLibrary);
+  $("library-search").addEventListener("input", (event) => {
+    state.librarySearch = event.target.value;
+    renderLibrary();
+  });
   $("map-skip").addEventListener("click", nextMapping);
   $("map-forget").addEventListener("click", forgetMapping);
   $("map-stop").addEventListener("click", () => {
@@ -2257,6 +2471,7 @@ function bindControls() {
 
 async function start() {
   restore();
+  loadLibrary();
   fillSelects();
   bindControls();
   bindGridEvents();
