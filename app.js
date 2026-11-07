@@ -1329,17 +1329,18 @@ function refreshPorts() {
   else if (state.output) setMidiPill(`MIDI: ${state.output.name}`);
   else setMidiPill("Protein not found. Connect it and turn it on.", "warn");
 
-  const input = [...state.midi.inputs.values()].find(isProtein) || null;
-  if (input !== state.input) {
-    if (state.input) state.input.onmidimessage = null;
-    state.input = input;
-    if (input) input.onmidimessage = handleMidiInput;
-  }
+  // Every input is heard, for recording from any keyboard. Controllers come from the Protein.
+  const inputs = [...state.midi.inputs.values()];
+  state.input = inputs.find(isProtein) || null;
+  for (const port of inputs) port.onmidimessage = (event) => handleMidiInput(event, port);
+  recorder.refresh(state.midi);
 }
 
 // A mapped controller coming back from the Protein, or from a controller passed through
 // it, updates the matching slider here. A sound dump is collected while reading.
-function handleMidiInput(event) {
+function handleMidiInput(event, port) {
+  if (recorder.message(event, port)) return;
+  if (port !== state.input) return;
   if (event.data[0] === 0xF0) {
     collectDump(event.data);
     return;
@@ -1771,9 +1772,54 @@ function renderLibrary() {
   }));
 }
 
+/* ---------- Recording ---------- */
+
+let recorder = null;
+
+function moveRecordCursor(time) {
+  if (time < state.windowStart || time >= state.windowStart + state.windowSpan) {
+    goToPage(Math.floor(time / (state.pageBars * BAR)));
+  }
+  selectSteps(time, time);
+}
+
+function setUpRecorder() {
+  recorder = Recorder.create({
+    notes,
+    makeNote: (fields) => ({ ...fields, probability: 100 }),
+    resolution: () => state.resolution,
+    length: () => lengthPulses(),
+    playing: () => state.playing,
+    pulseAt,
+    startStep: () => (state.selection ? state.selection.start : 0),
+    moveCursor: moveRecordCursor,
+    begin: () => {
+      closeNoteEditor({ restoreFocus: false });
+      remember();
+      renderChrome();
+    },
+    added: (item) => {
+      if (needsRowsFor([item])) renderGrid();
+      else repaintFor([item]);
+      renderChrome();
+      saveSoon();
+    },
+    lengthened: () => {
+      renderNoteBars();
+      saveSoon();
+    },
+    status: setStatus,
+    thru: ([status, note, velocity]) => {
+      if (state.output) state.output.send([status | state.channel, note, velocity]);
+    },
+    isInstrument: (port) => port === state.input,
+  }, { storageKey: "protein-grid-record-input", button: $("record"), input: $("record-input"), channel: $("record-channel") });
+}
+
 function sendNote(note, velocity, atTime, lengthMs) {
   if (!state.output) return;
   const value = Math.max(1, Math.min(127, Math.round(velocity * 127)));
+  recorder.sent(note, atTime);
   try {
     state.output.send([0x90 | state.channel, note, value], atTime);
     state.output.send([0x80 | state.channel, note, 0], atTime + lengthMs);
@@ -2054,6 +2100,7 @@ function bindLane() {
     saveSoon();
   });
   $("lane-toggle").addEventListener("click", () => setLaneVisible(!state.showLane));
+  setUpRecorder();
   $("lane-copy").addEventListener("click", copyLanesToPattern);
 }
 
