@@ -82,9 +82,10 @@
       <span id="draw-label" class="group-label">Draw</span>
       <div id="chords" class="segmented"></div>
     </div>
-    <label title="How long a clicked step lasts. Drag from an empty step to draw any length.">Length
+    <label title="How long a clicked or recorded note lasts. Off records each note as long as you hold the key, and clicked steps last one step. Drag from an empty step to draw any length.">Length
       <select id="new-length">
-        <option value="step" selected>1 step</option>
+        <option value="off" selected>Off (as held)</option>
+        <option value="step">1 step</option>
         <option value="beat">1 beat</option>
         <option value="bar">1 bar</option>
       </select>
@@ -363,7 +364,7 @@
     <h3>Mouse and keyboard</h3>
     <table>
       <tbody>
-        <tr><th scope="row">Click a step</th><td>Add or remove it. New steps use the <b>Length</b> setting.</td></tr>
+        <tr><th scope="row">Click a step</th><td>Add or remove it. New steps use the <b>Length</b> setting, or one step when it's Off.</td></tr>
         <tr><th scope="row">Drag from an empty step</th><td>Draw one note as long as you drag. Hold <kbd>Alt</kbd> for single ticks.</td></tr>
         <tr><th scope="row">Drag a note</th><td>Change where it ends, from its first step or its end marker. It moves in eighths of a step, or hold <kbd>Alt</kbd> for single ticks.</td></tr>
         <tr><th scope="row"><kbd>Cmd</kbd>-drag across steps</th><td>Fill separate steps, or remove them when starting from a filled step.</td></tr>
@@ -379,7 +380,7 @@
     <h3>Chains, knob movements and files</h3>
     <ul>
       <li><b>Sub-step</b>, in the step editor, plays a step in quick repeats, where <b>o</b> plays and <b>-</b> is silent.</li>
-      <li><b>Rec</b> records notes into the pattern from the input and channel chosen beside it: the Protein's own keys, another keyboard, or any input on any channel. While playing, notes land on the nearest step and last exactly as long as you hold them, not rounded to whole steps, and each time round the loop adds to what's there. They then play back on the Protein like any other steps. While stopped, each key adds a note and moves on a step, starting from the chosen step. Undo takes back the whole take.</li>
+      <li><b>Rec</b> records notes into the pattern from the input and channel chosen beside it: the Protein's own keys, another keyboard, or any input on any channel. While playing, notes land on the nearest step and last as long as you hold them, or the length chosen in <b>Length</b> if it isn't Off, and each time round the loop adds to what's there. They then play back on the Protein like any other steps. While stopped, each key adds a note and moves on a step, starting from the chosen step. Undo takes back the whole take.</li>
       <li><b>Click</b> plays a metronome click on each beat while the pattern plays, louder on the first beat of each bar. It comes from this computer's speakers, not the instrument, and stays on or off for next time.</li>
       <li>While recording, notes from another keyboard are passed on to the Protein so you hear them. If MIDI Hub is also routing that keyboard to the Protein, you'll hear each note twice, so choose one.</li>
       <li><b>Chain</b> takes pattern numbers such as <b>1 1 2 3</b>. Tick <b>On</b> and Play goes through them in order, looping.</li>
