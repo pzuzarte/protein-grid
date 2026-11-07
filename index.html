@@ -129,6 +129,7 @@
       <button id="record" class="toggle" type="button" aria-pressed="false" title="Record notes into this pattern from the chosen input. Press Play to record in time as the pattern loops, or just press keys to add them step by step.">Rec</button>
       <select id="record-input" aria-label="Record from" title="The keyboard or instrument to record from"></select>
       <select id="record-channel" aria-label="Record channel" title="The MIDI channel to record, or any"></select>
+      <button id="click" class="toggle" type="button" aria-pressed="false" title="A metronome click on each beat while the pattern plays, louder on the first beat of each bar. It plays from this computer, not the instrument.">Click</button>
     </div>
     <button id="lane-toggle" class="toggle" type="button" aria-pressed="false" title="Draw knob movements under the grid, for settings mapped on the Synth tab">Knobs</button>
     <label title="Pattern numbers to play in order, such as 1 1 2 3">Chain
@@ -378,7 +379,8 @@
     <h3>Chains, knob movements and files</h3>
     <ul>
       <li><b>Sub-step</b>, in the step editor, plays a step in quick repeats, where <b>o</b> plays and <b>-</b> is silent.</li>
-      <li><b>Rec</b> records notes into the pattern from the input and channel chosen beside it: the Protein's own keys, another keyboard, or any input on any channel. While playing, notes land on the nearest step and last as long as you hold them, and each time round the loop adds to what's there. They then play back on the Protein like any other steps. While stopped, each key adds a note and moves on a step, starting from the chosen step. Undo takes back the whole take.</li>
+      <li><b>Rec</b> records notes into the pattern from the input and channel chosen beside it: the Protein's own keys, another keyboard, or any input on any channel. While playing, notes land on the nearest step and last exactly as long as you hold them, not rounded to whole steps, and each time round the loop adds to what's there. They then play back on the Protein like any other steps. While stopped, each key adds a note and moves on a step, starting from the chosen step. Undo takes back the whole take.</li>
+      <li><b>Click</b> plays a metronome click on each beat while the pattern plays, louder on the first beat of each bar. It comes from this computer's speakers, not the instrument, and stays on or off for next time.</li>
       <li>While recording, notes from another keyboard are passed on to the Protein so you hear them. If MIDI Hub is also routing that keyboard to the Protein, you'll hear each note twice, so choose one.</li>
       <li><b>Chain</b> takes pattern numbers such as <b>1 1 2 3</b>. Tick <b>On</b> and Play goes through them in order, looping.</li>
       <li><b>Knobs</b> opens a lane under the grid to draw how a mapped setting moves through the pattern. Alt-drag erases, and <b>Copy all to</b> copies the movements to another pattern.</li>
