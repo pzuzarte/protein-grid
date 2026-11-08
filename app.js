@@ -114,6 +114,7 @@ function restore() {
       Object.assign(state, saved);
       state.resolution = state.triplets ? (state.baseResolution * 2) / 3 : state.baseResolution;
       if (!["A", "B", "C", "D"].includes(state.layer)) state.layer = "A";
+      shareEffects();
     }
   } catch (error) {
     // A missing or unreadable save just means starting fresh.
@@ -1047,9 +1048,11 @@ function closeNoteEditor({ restoreFocus = true } = {}) {
 
 /* Each of the Protein's four layers has its own settings, and a mapping made on one layer
    only moves that layer. So values and mappings are kept per layer, under keys like
-   "B:filter.cutoff". Layer A keeps the plain names, which is all there was before layers. */
+   "B:filter.cutoff". Layer A keeps the plain names, which is all there was before layers.
+   The two effects are shared by all layers on the Protein, so they're kept once. */
 const LAYERS = ["A", "B", "C", "D"];
-const layerKey = (id, layer = state.layer) => (layer === "A" ? id : `${layer}:${id}`);
+const SHARED = new Set(["fx1.amount", "fx2.amount"]);
+const layerKey = (id, layer = state.layer) => (layer === "A" || SHARED.has(id) ? id : `${layer}:${id}`);
 
 function splitKey(key) {
   const found = /^([BCD]):(.+)$/.exec(key);
@@ -1063,7 +1066,7 @@ function layerValues(layer = state.layer) {
   const values = {};
   for (const [key, value] of Object.entries(state.values)) {
     const { layer: owner, id } = splitKey(key);
-    if (owner === layer) values[id] = value;
+    if (owner === layer || SHARED.has(id)) values[id] = value;
   }
   return values;
 }
@@ -1073,7 +1076,18 @@ const onLayer = (values, layer = state.layer) => Object.fromEntries(
 
 function keyName(key) {
   const { layer, id } = splitKey(key);
-  return `layer ${layer} ${ProteinParams.BY_ID.get(id).name}`;
+  const name = ProteinParams.BY_ID.get(id).name;
+  return SHARED.has(id) ? `${name} (all layers)` : `layer ${layer} ${name}`;
+}
+
+// Effects mapped on one layer before they were shared become the shared mapping.
+function shareEffects() {
+  for (const key of Object.keys(state.mappings)) {
+    const { id } = splitKey(key);
+    if (!SHARED.has(id) || key === id) continue;
+    if (state.mappings[id] === undefined) state.mappings[id] = state.mappings[key];
+    delete state.mappings[key];
+  }
 }
 
 function setLayer(layer) {
@@ -1173,7 +1187,7 @@ function updateParamControl(id) {
 // Redraws a setting's slider if its layer is the one showing.
 function updateKeyControl(key) {
   const { layer, id } = splitKey(key);
-  if (layer === state.layer) updateParamControl(id);
+  if (layer === state.layer || SHARED.has(id)) updateParamControl(id);
 }
 
 function renderMapCount() {
@@ -1247,9 +1261,14 @@ function renderMapper() {
   const cc = mappingCc();
   const { queue, index } = state.mapping;
   const { layer } = splitKey(mappingKey());
-  $("mapper-title").textContent = `Map layer ${layer}, ${SECTION_OF.get(param.id).name}: ${param.name}`;
+  const shared = SHARED.has(param.id);
+  $("mapper-title").textContent = shared
+    ? `Map ${SECTION_OF.get(param.id).name}: ${param.name}, shared by all layers`
+    : `Map layer ${layer}, ${SECTION_OF.get(param.id).name}: ${param.name}`;
   $("mapper-progress").textContent = queue.length > 1 ? `${index + 1} of ${queue.length}` : "";
-  $("mapper-where").textContent = `On the Protein, with layer ${layer} selected: ${param.where} Any amount will do.`;
+  $("mapper-where").textContent = shared
+    ? `On the Protein, with any layer selected: ${param.where} Any amount will do.`
+    : `On the Protein, with layer ${layer} selected: ${param.where} Any amount will do.`;
   $("mapper-send-step").textContent = cc === null
     ? "Every controller number this page uses is taken. Forget a mapping you don't need first."
     : `Click Send CC ${cc} here. The Protein maps it to ${param.name}, and sets it to the slider's value.`;
@@ -2011,11 +2030,12 @@ function editableLanes() {
 function fillLaneOptions() {
   const lanes = lanesFor() || {};
   const select = $("lane-cc");
-  const shown = LAYERS.flatMap((layer) => ProteinParams.ALL.map((param) => layerKey(param.id, layer)))
+  const shown = [...new Set(LAYERS.flatMap((layer) => ProteinParams.ALL.map((param) => layerKey(param.id, layer))))]
     .filter((key) => state.mappings[key] !== undefined || lanes[key]?.length);
   select.replaceChildren(...shown.map((key) => {
     const { layer, id } = splitKey(key);
-    return new Option(`${lanes[key]?.length ? "* " : ""}${layer}: ${SECTION_OF.get(id).name} ${ProteinParams.BY_ID.get(id).name}`, key);
+    const where = SHARED.has(id) ? "All" : layer;
+    return new Option(`${lanes[key]?.length ? "* " : ""}${where}: ${SECTION_OF.get(id).name} ${ProteinParams.BY_ID.get(id).name}`, key);
   }));
   if (!shown.length) select.append(new Option("Map a setting on the Synth tab first", ""));
   if (!shown.includes(state.laneParam)) state.laneParam = shown[0] || "";
@@ -2334,6 +2354,7 @@ async function restoreBackup(file) {
   remember();
   const { values, ...rest } = data;
   Object.assign(state, rest);
+  shareEffects();
   state.page = 0;
   state.mapping = null;
   resetVary();
