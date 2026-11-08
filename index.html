@@ -179,6 +179,15 @@
 
 <div id="synth-view" class="view synth-view" hidden>
   <section class="bar synth-bar" aria-label="Sound">
+    <div class="field" role="group" aria-labelledby="layers-label">
+      <span id="layers-label" class="group-label" title="The Protein's four layers each have their own settings, and their own mappings">Layer</span>
+      <div id="layers" class="segmented">
+        <button type="button" data-layer="A" aria-pressed="true" title="Layer A's settings">A</button>
+        <button type="button" data-layer="B" aria-pressed="false" title="Layer B's settings">B</button>
+        <button type="button" data-layer="C" aria-pressed="false" title="Layer C's settings">C</button>
+        <button type="button" data-layer="D" aria-pressed="false" title="Layer D's settings">D</button>
+      </div>
+    </div>
     <span id="map-count" class="pill"></span>
     <button id="map-start" class="primary" type="button" title="Walks you through mapping each setting on the Protein, one at a time">Set up controls</button>
     <button id="read-protein" type="button" title="Waits for the Protein to send its current sound, from Presets, Actions, Send">Read from Protein</button>
@@ -327,16 +336,18 @@
       <li><b>Skip</b> moves on without mapping, and <b>Done</b> stops. You can carry on later, and the mapped count shows how far you are. <b>Map</b> next to any slider maps just that one, or maps it again.</li>
       <li>The Protein lists its mappings under <kbd>Shift</kbd> + <kbd>Settings</kbd>, <b>Mappings</b>, where you can delete one. <b>Forget mapping</b> only forgets it here.</li>
       <li>The Protein gives no sign over MIDI that a mapping worked, so move the slider afterwards and check that the setting changes. If it doesn't, map it again.</li>
+      <li>Each of the Protein's four layers needs its own mappings, as a mapping made on layer A only moves layer A. Choose a layer with <b>Layer</b> on the Synth tab, select the same layer on the Protein, then map as above. Every mapping takes its own controller number, and there are 89 to share between the four layers, so map the settings you'll use on each layer rather than all 52 on all four. Hover over the mapped count to see how many are left.</li>
       <li>Mappings are kept in this browser and in backups. Whether the Protein keeps them through a restart, or for every sound, hasn't been checked yet.</li>
     </ul>
 
     <h3>Synth tab</h3>
     <ul>
+      <li><b>Layer</b> A to D picks which of the Protein's layers the sliders show and control. Each layer keeps its own values and mappings. A faint letter has nothing mapped yet. How the layers play together (one at a time, Layered, Round Robin, Random Robin or Midi Split) is set on the Protein with its <b>Multi</b> button.</li>
       <li>Moving a slider sends its setting straight away, even during playback. Values run from 0 to 127, and the Protein spreads that over the setting's own range, so its display shows the exact value. Settings with a middle point show 0 there.</li>
       <li>A slider shown faint hasn't been set from this page yet. The Protein can't report its settings, so the page doesn't know them until you move them or load a sound.</li>
-      <li><b>Save sound</b> keeps the sliders' values in this browser under a name, and <b>Load</b> sends them back. Only the mapped settings are sent. These don't replace the Protein's own presets.</li>
-      <li><b>Vary</b> nudges the known settings a little or a lot, leaving tuning, pan and volume alone. <b>Hear original</b> flips between the sound before you started and the new one.</li>
-      <li><b>Read from Protein</b> updates the sliders from the Protein's current sound, such as after choosing a preset there. Click it, then on the Protein press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. Chrome asks for SysEx permission the first time. The Protein can't be asked for its sound, so it takes that press of Send each time.</li>
+      <li><b>Save sound</b> keeps the sliders' values in this browser under a name, and <b>Load</b> sends them back. Only the mapped settings are sent. A saved sound can be loaded onto any layer. These don't replace the Protein's own presets.</li>
+      <li><b>Vary</b> nudges the known settings a little or a lot, leaving tuning, pan and volume alone. <b>Hear original</b> flips between the sound before you started and the new one. Both work on the layer shown.</li>
+      <li><b>Read from Protein</b> and <b>Teach reading</b> cover layer A for now. <b>Read from Protein</b> updates the sliders from the Protein's current sound, such as after choosing a preset there. Click it, then on the Protein press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. Chrome asks for SysEx permission the first time. The Protein can't be asked for its sound, so it takes that press of Send each time.</li>
       <li><b>Teach reading</b> is needed once, after mapping, and again if you change mappings. It takes two presses of Send: the first keeps your sound, then the page sets each mapped setting to a test value, and the second shows where each one is in the Protein's dump. Your sound is put back afterwards. Settings it can't find are named in the status line. What it learns is kept in this browser.</li>
       <li><b>Save dump</b> keeps the last sound the Protein sent as a .syx file, and <b>Add to library</b> saves it in the Library tab's folder.</li>
       <li>Mod slots' sources and targets, effect types and their deeper settings, and the arpeggiator and sequencer are set on the Protein.</li>
@@ -384,7 +395,7 @@
       <li><b>Click</b> plays a metronome click on each beat while the pattern plays, louder on the first beat of each bar. It comes from this computer's speakers, not the instrument, and stays on or off for next time.</li>
       <li>While recording, notes from another keyboard are passed on to the Protein so you hear them. If MIDI Hub is also routing that keyboard to the Protein, you'll hear each note twice, so choose one.</li>
       <li><b>Chain</b> takes pattern numbers such as <b>1 1 2 3</b>. Tick <b>On</b> and Play goes through them in order, looping.</li>
-      <li><b>Knobs</b> opens a lane under the grid to draw how a mapped setting moves through the pattern. Alt-drag erases, and <b>Copy all to</b> copies the movements to another pattern.</li>
+      <li><b>Knobs</b> opens a lane under the grid to draw how a mapped setting moves through the pattern, on any layer: the list names each setting's layer first. Alt-drag erases, and <b>Copy all to</b> copies the movements to another pattern.</li>
       <li>Patterns 1-16 are stored in this browser. <b>Back up</b> saves them with your saved sounds and mappings to one file, and <b>Restore</b> loads it back. <b>Export MIDI</b> and <b>Import MIDI</b> work with one pattern at a time.</li>
       <li><b>Sync</b> plays this page together with <a href="https://pzuzarte.github.io/s1-grid/" target="_blank" rel="noopener">S-1 Grid</a> and <a href="https://pzuzarte.github.io/mpc-grid/" target="_blank" rel="noopener">MPC Grid</a> when they're open in the same browser. Play, stop and tempo are shared.</li>
       <li><b>Send clock</b> sends MIDI clock with playback. With <b>Sync Source</b> set to Extern in the Protein's settings, its arpeggiator, sequencer and clocked LFOs follow this page's tempo.</li>

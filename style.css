@@ -102,6 +102,7 @@ label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted)
 label.check { color: var(--text); }
 .group-label { color: var(--muted); font-size: 12px; }
 .field { display: inline-flex; align-items: center; gap: 6px; }
+#layers button.unmapped:not([aria-pressed="true"]) { opacity: 0.6; }
 
 select, input[type="number"], input[type="text"], input[type="search"], button {
   height: 30px;

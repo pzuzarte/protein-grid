@@ -37,6 +37,7 @@ const state = {
   triplets: false,
   resolution: 240,
   view: "grid",
+  layer: "A",
   sounds: [],
   values: {},
   mappings: {},
@@ -94,7 +95,7 @@ function saveSoon() {
   state.saveTimer = window.setTimeout(() => {
     const saved = {};
     for (const key of ["root", "scale", "moveNotes", "slots", "current", "bpm", "channel", "chord",
-      "newLength", "lowOctave", "span", "showAll", "baseResolution", "triplets", "view", "sounds", "mappings",
+      "newLength", "lowOctave", "span", "showAll", "baseResolution", "triplets", "view", "layer", "sounds", "mappings",
       "chain", "chainOn", "showLane", "laneParam", "readMap"]) {
       saved[key] = state[key];
     }
@@ -112,6 +113,7 @@ function restore() {
     if (saved && Array.isArray(saved.slots) && saved.slots.length === SLOTS) {
       Object.assign(state, saved);
       state.resolution = state.triplets ? (state.baseResolution * 2) / 3 : state.baseResolution;
+      if (!["A", "B", "C", "D"].includes(state.layer)) state.layer = "A";
     }
   } catch (error) {
     // A missing or unreadable save just means starting fresh.
@@ -1043,6 +1045,57 @@ function closeNoteEditor({ restoreFocus = true } = {}) {
 
 /* ---------- Synth tab ---------- */
 
+/* Each of the Protein's four layers has its own settings, and a mapping made on one layer
+   only moves that layer. So values and mappings are kept per layer, under keys like
+   "B:filter.cutoff". Layer A keeps the plain names, which is all there was before layers. */
+const LAYERS = ["A", "B", "C", "D"];
+const layerKey = (id, layer = state.layer) => (layer === "A" ? id : `${layer}:${id}`);
+
+function splitKey(key) {
+  const found = /^([BCD]):(.+)$/.exec(key);
+  return found ? { layer: found[1], id: found[2] } : { layer: "A", id: key };
+}
+
+const knownKey = (key) => ProteinParams.BY_ID.has(splitKey(key).id);
+
+// One layer's known values, under plain setting names, as saved sounds and Vary use them.
+function layerValues(layer = state.layer) {
+  const values = {};
+  for (const [key, value] of Object.entries(state.values)) {
+    const { layer: owner, id } = splitKey(key);
+    if (owner === layer) values[id] = value;
+  }
+  return values;
+}
+
+const onLayer = (values, layer = state.layer) => Object.fromEntries(
+  Object.entries(values).map(([id, value]) => [layerKey(id, layer), value]));
+
+function keyName(key) {
+  const { layer, id } = splitKey(key);
+  return `layer ${layer} ${ProteinParams.BY_ID.get(id).name}`;
+}
+
+function setLayer(layer) {
+  if (!LAYERS.includes(layer) || layer === state.layer) return;
+  state.layer = layer;
+  // The guide and Vary were for the other layer.
+  state.mapping = null;
+  resetVary();
+  renderLayers();
+  renderParams();
+  saveSoon();
+  setStatus(`Showing layer ${layer}. Select layer ${layer} on the Protein too while mapping it.`);
+}
+
+function renderLayers() {
+  for (const button of $("layers").querySelectorAll("button")) {
+    const mapped = ProteinParams.ALL.some((param) => state.mappings[layerKey(param.id, button.dataset.layer)] !== undefined);
+    button.setAttribute("aria-pressed", String(button.dataset.layer === state.layer));
+    button.classList.toggle("unmapped", !mapped);
+  }
+}
+
 const paramControls = new Map();
 const SECTION_OF = new Map(ProteinParams.SECTIONS.flatMap((section) => section.params.map((param) => [param.id, section])));
 
@@ -1085,7 +1138,7 @@ function paramRow(param) {
   input.min = 0;
   input.max = 127;
   input.step = 1;
-  input.addEventListener("input", () => setParam(param.id, Number(input.value)));
+  input.addEventListener("input", () => setParam(layerKey(param.id), Number(input.value)));
   const name = document.createElement("label");
   name.htmlFor = input.id;
   name.textContent = param.name;
@@ -1093,7 +1146,7 @@ function paramRow(param) {
   const map = document.createElement("button");
   map.type = "button";
   map.className = "map-button";
-  map.addEventListener("click", () => startMapping([param.id]));
+  map.addEventListener("click", () => startMapping([layerKey(param.id)]));
   row.append(name, input, output, map);
   paramControls.set(param.id, { param, input, output, map });
   return row;
@@ -1103,9 +1156,9 @@ function updateParamControl(id) {
   const control = paramControls.get(id);
   if (!control) return;
   const { param, input, output, map } = control;
-  const value = state.values[id];
+  const value = state.values[layerKey(id)];
   const known = value !== undefined;
-  const cc = state.mappings[id];
+  const cc = state.mappings[layerKey(id)];
   input.value = known ? value : 64;
   input.disabled = cc === undefined;
   // The Protein can't report its settings, so an untouched slider's position means nothing.
@@ -1117,11 +1170,21 @@ function updateParamControl(id) {
   map.title = cc === undefined ? "Map this setting so its slider controls the Protein" : `Mapped to controller ${cc}. Click to map it again.`;
 }
 
+// Redraws a setting's slider if its layer is the one showing.
+function updateKeyControl(key) {
+  const { layer, id } = splitKey(key);
+  if (layer === state.layer) updateParamControl(id);
+}
+
 function renderMapCount() {
-  const mapped = ProteinParams.ALL.filter((param) => state.mappings[param.id] !== undefined).length;
-  $("map-count").textContent = `${mapped} of ${ProteinParams.ALL.length} settings mapped`;
+  const mapped = ProteinParams.ALL.filter((param) => state.mappings[layerKey(param.id)] !== undefined).length;
+  const used = Object.keys(state.mappings).length;
+  const pool = ProteinParams.CC_POOL.length;
+  $("map-count").textContent = `Layer ${state.layer}: ${mapped} of ${ProteinParams.ALL.length} settings mapped`;
+  $("map-count").title = `${used} of the ${pool} controller numbers this page uses are taken, across all four layers.`;
   $("map-count").className = `pill ${mapped ? "ok" : "warn"}`;
   $("map-start").textContent = mapped ? "Map more" : "Set up controls";
+  renderLayers();
 }
 
 function sendController(cc, value, atTime) {
@@ -1132,27 +1195,27 @@ function sendController(cc, value, atTime) {
   return true;
 }
 
-// Sends a setting on its mapped controller, if it has one.
-function sendParam(id, value, atTime) {
-  const cc = state.mappings[id];
+// Sends a layer's setting on its mapped controller, if it has one.
+function sendParam(key, value, atTime) {
+  const cc = state.mappings[key];
   return cc !== undefined && sendController(cc, value, atTime);
 }
 
-function setParam(id, value) {
-  state.values[id] = value;
-  if (state.mappings[id] === undefined) setStatus(`${ProteinParams.BY_ID.get(id).name} isn't mapped yet. Click Map next to it.`, true);
-  else if (!sendParam(id, value)) setStatus("Not sent: no MIDI output connected.", true);
-  updateParamControl(id);
+function setParam(key, value) {
+  state.values[key] = value;
+  if (state.mappings[key] === undefined) setStatus(`${ProteinParams.BY_ID.get(splitKey(key).id).name} isn't mapped on layer ${splitKey(key).layer} yet. Click Map next to it.`, true);
+  else if (!sendParam(key, value)) setStatus("Not sent: no MIDI output connected.", true);
+  updateKeyControl(key);
 }
 
-// Sends a sound to the Protein and shows it on the page. A short gap keeps a burst of
-// messages from overrunning it.
+// Sends settings to the Protein and shows them on the page, keyed by layer. A short gap
+// keeps a burst of messages from overrunning it.
 function applySound(values) {
   let at = performance.now();
-  for (const [id, value] of Object.entries(values)) {
-    if (!ProteinParams.BY_ID.has(id)) continue;
-    state.values[id] = value;
-    if (sendParam(id, value, at)) at += 2;
+  for (const [key, value] of Object.entries(values)) {
+    if (!knownKey(key)) continue;
+    state.values[key] = value;
+    if (sendParam(key, value, at)) at += 2;
   }
   renderParams();
   return at;
@@ -1171,25 +1234,28 @@ function startMapping(ids) {
   if (!state.output) setStatus("No MIDI output connected, so nothing can be sent yet. Connect the Protein first.", true);
 }
 
-const mappingParam = () => state.mapping && ProteinParams.BY_ID.get(state.mapping.queue[state.mapping.index]);
-const mappingCc = (param) => state.mappings[param.id] ?? ProteinParams.freeCc(state.mappings);
+const mappingKey = () => state.mapping && state.mapping.queue[state.mapping.index];
+const mappingParam = () => state.mapping && ProteinParams.BY_ID.get(splitKey(mappingKey()).id);
+// Controller numbers are shared by all four layers, so each mapping takes one of its own.
+const mappingCc = () => state.mappings[mappingKey()] ?? ProteinParams.freeCc(state.mappings);
 
 function renderMapper() {
   const param = mappingParam();
   $("mapper").hidden = !param;
   for (const row of $("synth-sections").querySelectorAll(".param.mapping")) row.classList.remove("mapping");
   if (!param) return;
-  const cc = mappingCc(param);
+  const cc = mappingCc();
   const { queue, index } = state.mapping;
-  $("mapper-title").textContent = `Map ${SECTION_OF.get(param.id).name}: ${param.name}`;
+  const { layer } = splitKey(mappingKey());
+  $("mapper-title").textContent = `Map layer ${layer}, ${SECTION_OF.get(param.id).name}: ${param.name}`;
   $("mapper-progress").textContent = queue.length > 1 ? `${index + 1} of ${queue.length}` : "";
-  $("mapper-where").textContent = `On the Protein: ${param.where} Any amount will do.`;
+  $("mapper-where").textContent = `On the Protein, with layer ${layer} selected: ${param.where} Any amount will do.`;
   $("mapper-send-step").textContent = cc === null
     ? "Every controller number this page uses is taken. Forget a mapping you don't need first."
     : `Click Send CC ${cc} here. The Protein maps it to ${param.name}, and sets it to the slider's value.`;
   $("map-send").textContent = cc === null ? "No controller free" : `Send CC ${cc}`;
   $("map-send").disabled = cc === null;
-  $("map-forget").hidden = state.mappings[param.id] === undefined;
+  $("map-forget").hidden = state.mappings[mappingKey()] === undefined;
   paramControls.get(param.id)?.input.closest(".param").classList.add("mapping");
 }
 
@@ -1204,31 +1270,32 @@ function nextMapping() {
 
 function sendMapping() {
   const param = mappingParam();
-  const cc = mappingCc(param);
+  const key = mappingKey();
+  const cc = mappingCc();
   if (!param || cc === null) return;
-  const value = state.values[param.id] ?? 64;
+  const value = state.values[key] ?? 64;
   if (!sendController(cc, value)) {
     setStatus("No MIDI output connected. Connect the Protein first.", true);
     return;
   }
-  state.mappings[param.id] = cc;
-  state.values[param.id] = value;
-  updateParamControl(param.id);
+  state.mappings[key] = cc;
+  state.values[key] = value;
+  updateKeyControl(key);
   renderMapCount();
   saveSoon();
-  setStatus(`Sent CC ${cc} for ${param.name}. Move its slider later to check it took.`);
+  setStatus(`Sent CC ${cc} for ${keyName(key)}. Move its slider later to check it took.`);
   nextMapping();
 }
 
 function forgetMapping() {
-  const param = mappingParam();
-  if (!param) return;
-  delete state.mappings[param.id];
-  updateParamControl(param.id);
+  const key = mappingKey();
+  if (!key) return;
+  delete state.mappings[key];
+  updateKeyControl(key);
   renderMapCount();
   renderMapper();
   saveSoon();
-  setStatus(`Forgot ${param.name}'s mapping here. Delete it on the Protein too, under Shift + Settings, Mappings.`);
+  setStatus(`Forgot the mapping for ${keyName(key)} here. Delete it on the Protein too, under Shift + Settings, Mappings.`);
 }
 
 /* ---------- Saved sounds ---------- */
@@ -1247,13 +1314,14 @@ function saveSound() {
     $("sound-name").focus();
     return;
   }
-  if (!Object.keys(state.values).length) {
-    setStatus("Move some sliders first. Only settings the page knows are saved.", true);
+  const values = layerValues();
+  if (!Object.keys(values).length) {
+    setStatus(`Move some of layer ${state.layer}'s sliders first. Only settings the page knows are saved.`, true);
     return;
   }
   const existing = state.sounds.findIndex((sound) => sound.name.toLowerCase() === name.toLowerCase());
   if (existing >= 0 && !window.confirm(`Replace the saved sound "${state.sounds[existing].name}"?`)) return;
-  const sound = { name, values: { ...state.values } };
+  const sound = { name, values };
   if (existing >= 0) state.sounds[existing] = sound;
   else state.sounds.push(sound);
   renderSounds();
@@ -1268,15 +1336,15 @@ function loadSound() {
     setStatus("Choose a saved sound first.", true);
     return;
   }
-  state.varyOriginal = { ...state.values };
+  state.varyOriginal = layerValues();
   state.varyLatest = null;
-  applySound(sound.values);
-  state.varyLatest = { ...state.values };
+  applySound(onLayer(sound.values));
+  state.varyLatest = layerValues();
   renderVary(false);
   $("sound-name").value = sound.name;
-  const unmapped = Object.keys(sound.values).filter((id) => state.mappings[id] === undefined).length;
-  const skipped = unmapped ? ` ${unmapped} of its settings aren't mapped, so they weren't sent.` : "";
-  const sent = state.output ? `Sent "${sound.name}" to the Protein.` : `Loaded "${sound.name}", but no MIDI output is connected.`;
+  const unmapped = Object.keys(sound.values).filter((id) => state.mappings[layerKey(id)] === undefined).length;
+  const skipped = unmapped ? ` ${unmapped} of its settings aren't mapped on this layer, so they weren't sent.` : "";
+  const sent = state.output ? `Sent "${sound.name}" to layer ${state.layer}.` : `Loaded "${sound.name}", but no MIDI output is connected.`;
   setStatus(`${sent}${skipped} Hear original brings back the sound you had.`, !state.output);
 }
 
@@ -1347,10 +1415,10 @@ function handleMidiInput(event, port) {
   }
   const [status, first, second] = event.data;
   if ((status & 0x0F) !== state.channel || (status & 0xF0) !== 0xB0) return;
-  const id = Object.keys(state.mappings).find((key) => state.mappings[key] === first);
-  if (id === undefined) return;
-  state.values[id] = second;
-  updateParamControl(id);
+  const key = Object.keys(state.mappings).find((mapped) => state.mappings[mapped] === first);
+  if (key === undefined) return;
+  state.values[key] = second;
+  updateKeyControl(key);
 }
 
 /* ---------- Reading a sound dump ---------- */
@@ -1450,7 +1518,7 @@ function showDump(dump) {
   Object.assign(state.values, values);
   renderParams();
   saveSoon();
-  setStatus(`Read "${dump.name}" from the Protein: ${Object.keys(values).length} settings.`);
+  setStatus(`Read "${dump.name}" from the Protein: ${Object.keys(values).length} of layer A's settings.`);
 }
 
 /* ---------- Teaching the page to read dumps ---------- */
@@ -1628,10 +1696,10 @@ function loadLibrarySettings(item) {
   const found = libraryDump(item);
   if (!found) return;
   const values = ProteinDump.read(found.dump.values, state.readMap.map, state.readMap.fx);
-  state.varyOriginal = { ...state.values };
+  state.varyOriginal = layerValues();
   state.varyLatest = null;
-  applySound(values);
-  state.varyLatest = { ...state.values };
+  applySound(onLayer(values));
+  state.varyLatest = layerValues();
   renderVary(false);
   saveSoon();
   const sent = state.output ? `Sent ${plural(Object.keys(values).length, "mapped setting")} of "${item.name}".` : `Loaded "${item.name}" on the Synth tab, but no MIDI output is connected.`;
@@ -1943,11 +2011,14 @@ function editableLanes() {
 function fillLaneOptions() {
   const lanes = lanesFor() || {};
   const select = $("lane-cc");
-  const shown = ProteinParams.ALL.filter((param) => state.mappings[param.id] !== undefined || lanes[param.id]?.length);
-  select.replaceChildren(...shown.map((param) => new Option(
-    `${lanes[param.id]?.length ? "* " : ""}${SECTION_OF.get(param.id).name} ${param.name}`, param.id)));
+  const shown = LAYERS.flatMap((layer) => ProteinParams.ALL.map((param) => layerKey(param.id, layer)))
+    .filter((key) => state.mappings[key] !== undefined || lanes[key]?.length);
+  select.replaceChildren(...shown.map((key) => {
+    const { layer, id } = splitKey(key);
+    return new Option(`${lanes[key]?.length ? "* " : ""}${layer}: ${SECTION_OF.get(id).name} ${ProteinParams.BY_ID.get(id).name}`, key);
+  }));
   if (!shown.length) select.append(new Option("Map a setting on the Synth tab first", ""));
-  if (!shown.some((param) => param.id === state.laneParam)) state.laneParam = shown[0]?.id || "";
+  if (!shown.includes(state.laneParam)) state.laneParam = shown[0] || "";
   select.value = state.laneParam;
   // Keeps the choice when redrawing, and otherwise suggests the next pattern.
   const target = $("lane-copy-target");
@@ -2251,7 +2322,7 @@ function downloadBackup() {
 async function restoreBackup(file) {
   let data;
   try {
-    data = Backup.unpack(JSON.parse(await file.text()), { scales: Music.SCALES, params: ProteinParams.BY_ID });
+    data = Backup.unpack(JSON.parse(await file.text()), { scales: Music.SCALES, params: { has: knownKey } });
   } catch (error) {
     setStatus(`Couldn't restore ${file.name}: ${error.message}`, true);
     return;
@@ -2344,14 +2415,14 @@ function renderVary(showingOriginal) {
 }
 
 function varySound(amount) {
-  const { changes, unknown } = ProteinParams.vary(state.values, amount);
+  const { changes, unknown } = ProteinParams.vary(layerValues(), amount);
   if (!Object.keys(changes).length) {
     setStatus("Vary needs known values. Move some sliders, or load a saved sound, first.", true);
     return;
   }
-  state.varyOriginal ??= { ...state.values };
-  applySound(changes);
-  state.varyLatest = { ...state.values };
+  state.varyOriginal ??= layerValues();
+  applySound(onLayer(changes));
+  state.varyLatest = layerValues();
   renderVary(false);
   const skipped = unknown ? ` ${unknown} settings showing ? were left alone.` : "";
   setStatus(`Changed ${Object.keys(changes).length} controls. Hear original compares them.${skipped}`);
@@ -2359,8 +2430,8 @@ function varySound(amount) {
 
 function compareVary() {
   const showingOriginal = $("vary-compare").getAttribute("aria-pressed") === "true";
-  if (!showingOriginal) state.varyLatest = { ...state.values };
-  applySound(showingOriginal ? state.varyLatest : state.varyOriginal);
+  if (!showingOriginal) state.varyLatest = layerValues();
+  applySound(onLayer(showingOriginal ? state.varyLatest : state.varyOriginal));
   renderVary(!showingOriginal);
   setStatus(showingOriginal ? "Hearing the new version." : "Hearing the original.");
 }
@@ -2400,6 +2471,10 @@ function fillSelects() {
 }
 
 function bindControls() {
+  $("layers").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-layer]");
+    if (button) setLayer(button.dataset.layer);
+  });
   const number = (id, apply) => $(id).addEventListener("change", (event) => {
     apply(Number(event.target.value));
     saveSoon();
@@ -2488,7 +2563,7 @@ function bindControls() {
   $("sound-delete").addEventListener("click", deleteSound);
   $("sound-save").addEventListener("click", saveSound);
   $("sound-name").addEventListener("keydown", (event) => { if (event.key === "Enter") saveSound(); });
-  $("map-start").addEventListener("click", () => startMapping(ProteinParams.MAPPING_ORDER.filter((id) => state.mappings[id] === undefined)));
+  $("map-start").addEventListener("click", () => startMapping(ProteinParams.MAPPING_ORDER.map((id) => layerKey(id)).filter((key) => state.mappings[key] === undefined)));
   $("map-send").addEventListener("click", sendMapping);
   $("read-protein").addEventListener("click", () => startReading(false));
   $("teach-read").addEventListener("click", startTeaching);
