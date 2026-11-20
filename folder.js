@@ -168,13 +168,14 @@ const SoundFolder = (() => {
       }
     };
 
-    // Files in a folder inside the library, such as backups.
-    library.subfolder = async (name) => {
+    // Files in a folder inside the library, such as backups, ending in the library's
+    // extension unless another is given.
+    library.subfolder = async (name, ending = extension) => {
       const directory = await library.folder.getDirectoryHandle(name, { create: true });
       return {
-        list: () => listFiles(directory, extension),
-        write: (fileName, bytes) => writeFile(directory, `${fileName}${extension}`, bytes),
-        remove: (fileName) => directory.removeEntry(`${fileName}${extension}`),
+        list: () => listFiles(directory, ending),
+        write: (fileName, bytes) => writeFile(directory, `${fileName}${ending}`, bytes),
+        remove: (fileName) => directory.removeEntry(`${fileName}${ending}`),
       };
     };
 

@@ -103,3 +103,14 @@ test("a folder inside the library holds its own files", async () => {
   await backups.remove("Backup 1");
   assert.deepEqual(await backups.list(), []);
 });
+
+test("a folder inside the library can hold another kind of file", async () => {
+  const library = await readyLibrary();
+  const patterns = await library.subfolder("Patterns", ".json");
+  await patterns.write("Groove", new TextEncoder().encode("{}"));
+  await (await library.subfolder("Backups")).write("Backup 1", sound(9));
+  assert.deepEqual((await patterns.list()).map((file) => file.name), ["Groove"]);
+  assert.deepEqual((await (await library.subfolder("Patterns")).list()), [], ".syx files only, by default");
+  await patterns.remove("Groove");
+  assert.deepEqual(await patterns.list(), []);
+});
