@@ -54,6 +54,7 @@ const state = {
   windowStart: 0,
   windowSpan: 0,
   undo: [],
+  redo: [],
   chain: "",
   chainOn: false,
   chainPos: 0,
@@ -173,20 +174,7 @@ function setKey(root, scale) {
 }
 
 function renderKey() {
-  const off = document.createElement("button");
-  off.type = "button";
-  off.textContent = "Off";
-  off.title = "No key: the grid shows every note, and nothing is marked as in or out of a key";
-  off.setAttribute("aria-pressed", String(state.keyOff));
-  off.addEventListener("click", () => setKeyOff(true));
-  $("roots").replaceChildren(off, ...Music.NOTE_NAMES.map((name, index) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = name;
-    button.setAttribute("aria-pressed", String(!state.keyOff && index === state.root));
-    button.addEventListener("click", () => setKey(index, state.scale));
-    return button;
-  }));
+  $("root").value = state.keyOff ? "off" : String(state.root);
   $("scale").value = state.keyOff ? "off" : state.scale;
   $("move-notes").checked = state.moveNotes;
   $("generate").disabled = state.keyOff;
@@ -431,22 +419,39 @@ function setBulkVelocity() {
 
 /* ---------- Undo ---------- */
 
-function remember() {
-  state.undo.push({
+// The state that Undo and Redo bring back.
+function snapshot() {
+  return {
     json: JSON.stringify({ root: state.root, scale: state.scale, keyOff: state.keyOff, slots: state.slots, current: state.current, bpm: state.bpm }),
-  });
-  if (state.undo.length > 100) state.undo.shift();
-  $("undo").disabled = false;
+  };
 }
 
-function undo() {
-  const last = state.undo.pop();
+function remember() {
+  state.undo.push(snapshot());
+  if (state.undo.length > 100) state.undo.shift();
+  state.redo = [];
+  renderUndo();
+}
+
+function renderUndo() {
+  $("undo").disabled = state.undo.length === 0;
+  $("redo").disabled = state.redo.length === 0;
+}
+
+const undo = () => stepHistory(state.undo, state.redo);
+const redo = () => stepHistory(state.redo, state.undo);
+
+// Brings back the last state from one list, keeping the current one in the other.
+function stepHistory(from, to) {
+  const last = from.pop();
   if (!last) return;
+  to.push(snapshot());
   closeNoteEditor({ restoreFocus: false });
   Object.assign(state, JSON.parse(last.json));
   renderAll();
   if (state.playing) announceTempo();
   saveSoon();
+  renderUndo();
 }
 
 /* ---------- Rendering the grid ---------- */
@@ -637,7 +642,7 @@ function renderStepControls() {
 }
 
 function renderChrome() {
-  $("undo").disabled = state.undo.length === 0;
+  renderUndo();
   renderSlots();
 }
 
@@ -1689,6 +1694,7 @@ const library = SoundFolder.create({
 
 async function openLibrary() {
   await library.restore();
+  await readPatterns();
   renderLibrary();
 }
 
@@ -1699,8 +1705,160 @@ async function chooseLibraryFolder() {
     setStatus(`Couldn't open that folder: ${error.message}`, true);
     return;
   }
+  await readPatterns();
   renderLibrary();
   if (library.status === "ready") setStatus(`Using "${library.folder.name}" as the sound library: ${plural(library.items.length, "sound")}.`);
+}
+
+/* ---------- Pattern library ---------- */
+
+// Patterns are kept as .json files in the library folder's Patterns folder, with their
+// notes, bars, knob movements and tempo, so they come back exactly as saved. The same
+// as in Bass Station Grid.
+const PATTERNS = "Patterns";
+const patterns = { items: [], search: "" };
+const patternFolder = () => library.subfolder(PATTERNS, ".json");
+
+function readPatternFile(bytes) {
+  try {
+    const data = JSON.parse(new TextDecoder().decode(bytes));
+    if (!data || data.app !== "protein-grid" || !Array.isArray(data.notes)) return null;
+    const notes = data.notes.filter((item) => item && [item.time, item.note, item.length].every(Number.isFinite)
+      && item.note >= 0 && item.note <= 127 && item.time >= 0 && item.length > 0);
+    return {
+      bars: Number.isFinite(data.bars) && data.bars > 0 ? data.bars : 4,
+      notes,
+      lanes: data.lanes && typeof data.lanes === "object" ? data.lanes : null,
+      bpm: Number.isFinite(data.bpm) ? Math.max(20, Math.min(300, data.bpm)) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function readPatterns() {
+  patterns.items = [];
+  if (library.status !== "ready") return;
+  try {
+    for (const file of await (await patternFolder()).list()) {
+      const pattern = readPatternFile(file.bytes);
+      if (pattern) patterns.items.push({ name: file.name, ...pattern });
+    }
+  } catch {
+    // The folder can't be read, so the list stays empty.
+  }
+}
+
+// Patterns are saved in the library folder, so this asks for it first if it isn't open.
+// It's called straight from a click, as the browser only shows its folder picker then.
+async function ensureLibrary() {
+  if (library.status === "ready") return true;
+  if (library.status === "unsupported") return libraryReady();
+  setStatus("Choose the library folder, where your sounds and patterns are saved.");
+  await chooseLibraryFolder();
+  return library.status === "ready";
+}
+
+async function savePattern() {
+  if (!notes().length && !(slot().lanes && Object.keys(slot().lanes).length)) {
+    setStatus(`Pattern ${state.current + 1} is empty, so there's nothing to save. Add notes first.`, true);
+    return;
+  }
+  if (!(await ensureLibrary())) return;
+  const name = SoundFolder.cleanName(window.prompt("Name this pattern", `Pattern ${state.current + 1}`) || "");
+  if (!name) return;
+  const fileName = SoundFolder.uniqueName(name, patterns.items.map((item) => item.name));
+  const data = { app: "protein-grid", version: 1, bars: slot().bars, bpm: currentBpm(), notes: notes(), lanes: slot().lanes || null };
+  try {
+    await (await patternFolder()).write(fileName, new TextEncoder().encode(JSON.stringify(data, null, 1)));
+  } catch (error) {
+    setStatus(`Couldn't save it to the library folder: ${error.message}`, true);
+    return;
+  }
+  await readPatterns();
+  renderLibrary();
+  setStatus(`Saved pattern ${state.current + 1} as "${fileName}" in ${PATTERNS} in "${library.folder.name}".`);
+}
+
+// Shows the saved patterns, on the Library tab.
+async function showSavedPatterns() {
+  if (!(await ensureLibrary())) return;
+  setView("library");
+  renderLibrary();
+  $("pattern-search").scrollIntoView({ block: "center" });
+  $("pattern-search").focus();
+  setStatus(patterns.items.length
+    ? `Click Load on a pattern to put it into pattern ${state.current + 1}.`
+    : "No saved patterns yet. Save pattern, on the Grid tab, saves the one you're on.");
+}
+
+// Puts a saved pattern into the current pattern. Undo brings back what was there.
+function loadSavedPattern(item) {
+  stop();
+  closeNoteEditor({ restoreFocus: false });
+  remember();
+  state.slots[state.current] = { bars: item.bars, notes: JSON.parse(JSON.stringify(item.notes)) };
+  if (item.lanes) state.slots[state.current].lanes = JSON.parse(JSON.stringify(item.lanes));
+  if (item.bpm) state.bpm = item.bpm;
+  if (item.notes.length) {
+    const lowest = Math.min(...item.notes.map((n) => n.note));
+    state.lowOctave = Math.max(1, Math.min(6, Math.floor(lowest / 12) - 1));
+  }
+  state.page = 0;
+  renderAll();
+  saveSoon();
+  setStatus(`Loaded "${item.name}" into pattern ${state.current + 1}. Undo brings back what was there.`);
+}
+
+function renderPatterns() {
+  const ready = library.status === "ready";
+  $("pattern-search").disabled = !ready;
+  const words = patterns.search.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = ready ? patterns.items.filter((item) => words.every((word) => item.name.toLowerCase().includes(word))) : [];
+  $("patterns-empty").hidden = ready && shown.length > 0;
+  $("patterns-empty").textContent = !ready
+    ? "Patterns are saved in the library folder too. Choose it above."
+    : patterns.items.length
+      ? "No saved patterns match that search."
+      : "No saved patterns yet. Save pattern, next to the patterns on the Grid tab, saves the one you're on.";
+  $("pattern-list").replaceChildren(...shown.map((item) => {
+    const row = document.createElement("li");
+    row.className = "library-row";
+    const text = document.createElement("span");
+    text.className = "library-name";
+    text.textContent = item.name;
+    const about = document.createElement("small");
+    about.textContent = ` ${plural(item.bars, "bar")}, ${plural(item.notes.length, "note")}${item.bpm ? `, ${item.bpm} BPM` : ""}`;
+    text.append(about);
+    row.append(text,
+      actionButton("Load", `Put it into pattern ${state.current + 1} on the Grid tab`, () => loadSavedPattern(item)),
+      actionButton("Rename", "Rename this pattern and its file", async () => {
+        const name = SoundFolder.cleanName(window.prompt("Rename this pattern", item.name) || "");
+        if (!name || name === item.name) return;
+        const fileName = SoundFolder.uniqueName(name, patterns.items.filter((other) => other !== item).map((other) => other.name));
+        try {
+          const folder = await patternFolder();
+          const [file] = (await folder.list()).filter((entry) => entry.name === item.name);
+          await folder.write(fileName, file.bytes);
+          await folder.remove(item.name);
+        } catch (error) {
+          setStatus(`Couldn't rename it: ${error.message}`, true);
+        }
+        await readPatterns();
+        renderLibrary();
+      }),
+      actionButton("Delete", "Delete this pattern's file from the library folder", async () => {
+        if (!window.confirm(`Delete "${item.name}.json" from the ${PATTERNS} folder?`)) return;
+        try {
+          await (await patternFolder()).remove(item.name);
+        } catch (error) {
+          setStatus(`Couldn't delete it: ${error.message}`, true);
+        }
+        await readPatterns();
+        renderLibrary();
+      }));
+    return row;
+  }));
 }
 
 const plural = (count, word, many = `${word}s`) => `${count} ${count === 1 ? word : many}`;
@@ -1852,6 +2010,7 @@ function actionButton(label, title, onClick) {
 }
 
 function renderLibrary() {
+  renderPatterns();
   const ready = library.status === "ready";
   const folderState = {
     unsupported: ["Choose library folder", "Saving sounds to a folder needs Chrome or Edge on a computer."],
@@ -2550,6 +2709,11 @@ function openHelp() {
 }
 
 function fillSelects() {
+  $("root").replaceChildren(new Option("Off", "off"), ...Music.NOTE_NAMES.map((name, index) => new Option(name, String(index))));
+  $("root").addEventListener("change", (event) => {
+    if (event.target.value === "off") setKeyOff(true);
+    else setKey(Number(event.target.value), state.scale);
+  });
   $("scale").replaceChildren(new Option("Off", "off"), ...Object.entries(Music.SCALES).map(
     ([id, scale]) => new Option(scale.name, id)));
   $("generator").replaceChildren(...Object.entries(Music.GENERATORS).map(
@@ -2658,6 +2822,7 @@ function bindControls() {
   $("octave-up").addEventListener("click", () => shiftOctave(1));
   $("generate").addEventListener("click", generatePattern);
   $("undo").addEventListener("click", undo);
+  $("redo").addEventListener("click", redo);
   $("duplicate").addEventListener("click", duplicatePattern);
   $("clear").addEventListener("click", () => {
     if (!notes().length) return;
@@ -2691,6 +2856,12 @@ function bindControls() {
     if (file) importLibrary(file).catch((error) => setStatus(`Couldn't import ${file.name}: ${error.message}`, true));
   });
   $("library-export-all").addEventListener("click", exportAllLibrary);
+  $("save-pattern").addEventListener("click", savePattern);
+  $("load-pattern").addEventListener("click", showSavedPatterns);
+  $("pattern-search").addEventListener("input", (event) => {
+    patterns.search = event.target.value;
+    renderPatterns();
+  });
   $("library-search").addEventListener("input", (event) => {
     state.librarySearch = event.target.value;
     renderLibrary();
@@ -2741,9 +2912,10 @@ function bindControls() {
       pasteClipboard();
     } else if (event.key === "Escape") {
       clearSelection();
-    } else if ((event.metaKey || event.ctrlKey) && event.key === "z") {
+    } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
       event.preventDefault();
-      undo();
+      if (event.shiftKey) redo();
+      else undo();
     } else if (event.key === "t" && !event.metaKey && !event.ctrlKey) {
       setSteps(state.baseResolution, !state.triplets);
     }

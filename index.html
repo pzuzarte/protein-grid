@@ -24,20 +24,38 @@
     <button type="button" data-view="synth">Synth</button>
     <button type="button" data-view="library">Library</button>
   </nav>
-  <div class="field" role="group" aria-labelledby="key-label">
-    <span id="key-label" class="group-label">Key</span>
-    <div id="roots" class="segmented"></div>
-  </div>
+  <label title="The key the grid shows. Off shows every note.">Key
+    <select id="root"></select>
+  </label>
   <label>Scale
     <select id="scale"></select>
   </label>
   <label class="check" title="When on, changing the key moves your patterns into the new key. When off, notes stay where they are.">
-    <input id="move-notes" type="checkbox" checked> Move notes with key
+    <input id="move-notes" type="checkbox" checked> Move notes
   </label>
   <div class="spacer"></div>
+  <label title="The MIDI output the instrument is on">Output
+    <select id="output"></select>
+  </label>
+  <label title="The Protein's MIDI channel, set in its Settings.">Channel
+    <select id="channel"></select>
+  </label>
   <span id="midi-state" class="pill">MIDI: starting</span>
   <button id="midi-retry" type="button" hidden>Allow MIDI</button>
-  <button id="theme-toggle" type="button" title="Switch between dark and light mode">Light mode</button>
+  <details class="tool-menu">
+    <summary title="Open another of the tools, in its own tab">Tools</summary>
+    <nav aria-label="Tools">
+      <a href="https://pzuzarte.github.io/s1-grid/" target="s1-grid">S-1 Grid</a>
+      <a href="https://pzuzarte.github.io/protein-grid/" target="protein-grid" aria-current="page">Protein Grid</a>
+      <a href="https://pzuzarte.github.io/bass-station-grid/" target="bass-station-grid">Bass Station Grid</a>
+      <a href="https://pzuzarte.github.io/mpc-grid/" target="mpc-grid">MPC Grid</a>
+      <a href="https://pzuzarte.github.io/td3-grid/" target="td3-grid">TD-3 Grid</a>
+      <a href="https://pzuzarte.github.io/song-grid/" target="song-grid">Song Grid</a>
+      <a href="https://pzuzarte.github.io/midi-hub/" target="midi-hub">MIDI Hub</a>
+      <hr>
+      <button id="theme-toggle" type="button" title="Switch between dark and light mode">Light mode</button>
+    </nav>
+  </details>
   <button id="help-open" type="button" title="Help (press ?)">Help</button>
 </header>
 
@@ -50,8 +68,11 @@
       <select id="generator"></select>
     </label>
     <button id="generate" type="button" title="Replaces this pattern with a new one in the key. Undo brings the old one back.">Generate</button>
-    <button id="undo" type="button" disabled>Undo</button>
+    <button id="undo" type="button" title="Undo (Cmd+Z)" disabled>Undo</button>
+    <button id="redo" type="button" title="Redo (Cmd+Shift+Z)" disabled>Redo</button>
     <button id="duplicate" type="button" title="Copy this pattern to the next empty slot">Duplicate</button>
+    <button id="save-pattern" type="button" title="Save this pattern by name in the library folder">Save pattern</button>
+    <button id="load-pattern" type="button" title="Choose a saved pattern to load into this one">Load pattern</button>
     <button id="clear" type="button">Clear</button>
   </section>
 
@@ -61,6 +82,15 @@
     <label>BPM
       <input id="bpm" type="number" min="20" max="300" step="0.1" value="120">
     </label>
+  <label class="check" title="Plays together with S-1 Grid and MPC Grid when they're open in this browser. Play, stop and tempo are shared.">
+    <input id="sync" type="checkbox"> Sync
+  </label>
+  <span id="sync-peers" class="pill" role="status" hidden></span>
+  <label class="check" title="Sends MIDI clock, start and stop with playback. With Sync Source set to Extern on the Protein, its arpeggiator, sequencer and clocked LFOs follow this page's tempo.">
+    <input id="clock" type="checkbox"> Send clock
+  </label>
+  <button id="click" class="toggle" type="button" aria-pressed="false" title="A metronome click on each beat while the pattern plays, louder on the first beat of each bar. It plays from this computer, not the instrument.">Click</button>
+  <span class="divider" aria-hidden="true"></span>
     <label>Bars
       <select id="bars">
         <option value="1">1</option>
@@ -90,22 +120,23 @@
         <option value="bar">1 bar</option>
       </select>
     </label>
-    <label>Octave
+        </section>
+
+  <section class="bar tools" aria-label="Pattern tools">
+  <label>Octave
       <select id="octave"></select>
     </label>
-    <label>Rows
+  <label>Rows
       <select id="span">
         <option value="1">1 oct</option>
         <option value="2" selected>2 oct</option>
         <option value="3">3 oct</option>
       </select>
     </label>
-    <label class="check" title="Show every note, not just the ones in the key.">
+  <label class="check" title="Show every note, not just the ones in the key.">
       <input id="show-all" type="checkbox"> All notes
     </label>
-  </section>
-
-  <section class="bar tools" aria-label="Pattern tools">
+  <span class="divider" aria-hidden="true"></span>
     <div class="button-pair">
       <button id="shift-left" type="button" title="Move the whole pattern one step earlier, wrapping around" aria-label="Move earlier">Shift &lt;</button>
       <button id="shift-right" type="button" title="Move the whole pattern one step later, wrapping around" aria-label="Move later">Shift &gt;</button>
@@ -130,7 +161,6 @@
       <button id="record" class="toggle" type="button" aria-pressed="false" title="Record notes into this pattern from the chosen input. Press Play to record in time as the pattern loops, or just press keys to add them step by step.">Rec</button>
       <select id="record-input" aria-label="Record from" title="The keyboard or instrument to record from"></select>
       <select id="record-channel" aria-label="Record channel" title="The MIDI channel to record, or any"></select>
-      <button id="click" class="toggle" type="button" aria-pressed="false" title="A metronome click on each beat while the pattern plays, louder on the first beat of each bar. It plays from this computer, not the instrument.">Click</button>
     </div>
     <button id="lane-toggle" class="toggle" type="button" aria-pressed="false" title="Draw knob movements under the grid, for settings mapped on the Synth tab">Knobs</button>
     <label title="Pattern numbers to play in order, such as 1 1 2 3">Chain
@@ -139,12 +169,6 @@
     <label class="check" title="Play the chain when you press Play">
       <input id="chain-on" type="checkbox"> On
     </label>
-    <div class="spacer"></div>
-    <div class="button-pair">
-      <button id="backup" type="button" title="Save all 16 patterns, saved sounds and mappings to one file">Back up</button>
-      <button id="restore" type="button" title="Load all 16 patterns, saved sounds and mappings from a backup file">Restore</button>
-    </div>
-    <input id="restore-file" type="file" accept=".json,application/json" hidden>
   </section>
 
   <div class="workspace">
@@ -258,6 +282,11 @@
     <input id="library-search" type="search" placeholder="Search names" aria-label="Search sounds" spellcheck="false">
     <p id="library-empty" class="library-note">No sounds in this folder yet. Add one from the Protein, or import a .syx file.</p>
     <ul id="library-list" class="library-list"></ul>
+
+    <h2 class="patterns-title">Patterns</h2>
+    <input id="pattern-search" type="search" placeholder="Search patterns" aria-label="Search patterns" spellcheck="false">
+    <p id="patterns-empty" class="library-note"></p>
+    <ul id="pattern-list" class="library-list"></ul>
   </section>
 </div>
 
@@ -293,19 +322,11 @@
 <footer class="bar foot">
   <p id="status" class="status" role="status" aria-live="polite"></p>
   <div class="spacer"></div>
-  <label>MIDI output
-    <select id="output"></select>
-  </label>
-  <label title="The Protein's MIDI channel, set in its Settings.">Channel
-    <select id="channel"></select>
-  </label>
-  <label class="check" title="Sends MIDI clock, start and stop with playback. With Sync Source set to Extern on the Protein, its arpeggiator, sequencer and clocked LFOs follow this page's tempo.">
-    <input id="clock" type="checkbox"> Send clock
-  </label>
-  <label class="check" title="Plays together with S-1 Grid and MPC Grid when they're open in this browser. Play, stop and tempo are shared.">
-    <input id="sync" type="checkbox"> Sync
-  </label>
-  <span id="sync-peers" class="pill" role="status" hidden></span>
+  <div class="button-pair">
+    <button id="backup" type="button" title="Save all 16 patterns, saved sounds and mappings to one file">Back up</button>
+    <button id="restore" type="button" title="Load all 16 patterns, saved sounds and mappings from a backup file">Restore</button>
+  </div>
+  <input id="restore-file" type="file" accept=".json,application/json" hidden>
   <button id="import" type="button" title="Replace this pattern with the notes from a MIDI file. Undo brings the old one back.">Import MIDI</button>
   <input id="import-file" type="file" accept=".mid,.midi,audio/midi" hidden>
   <button id="export" type="button" title="Download this pattern as a MIDI file">Export MIDI</button>
@@ -325,7 +346,7 @@
       <li>Connect the Protein to your computer with its USB-C cable, and turn it on.</li>
       <li>Allow MIDI access when asked. The MIDI badge turns green when the Protein is found. If it says MIDI blocked, click the icon to the left of the address, set <b>MIDI devices</b> to Allow, then click <b>Allow MIDI</b>.</li>
       <li>Click a note name in the grid. You should hear it on the Protein.</li>
-      <li>Check that <b>Channel</b> at the bottom matches the Protein's MIDI channel in its Settings.</li>
+      <li>Check that <b>Channel</b>, at the top right, matches the Protein's MIDI channel in its Settings.</li>
     </ol>
 
     <h3>Mapping the Protein's settings</h3>
@@ -355,6 +376,7 @@
 
     <h3>Library tab</h3>
     <ul>
+      <li><b>Save pattern</b> saves the pattern you're on by name, with its notes, bars, knob movements and tempo, as a .json file in the library folder's <b>Patterns</b> folder. It asks for the library folder first if it isn't chosen yet. <b>Load pattern</b> goes to the saved patterns on the Library tab, where <b>Load</b> puts one into the pattern you're on. Undo brings back what was there.</li>
       <li>The library keeps whole sounds, every setting and layer, exactly as the Protein sent them. It's a folder on this computer that you choose with <b>Choose library folder</b>, and each sound is saved there as its own .syx file, named after the sound. That keeps them even if the browser's data is cleared, and your usual backups include them. Where each came from is kept in <b>library-info.json</b> in the same folder. After Chrome restarts, click <b>Allow library folder</b> to use it again.</li>
       <li>This is separate from <b>Save sound</b> on the Synth tab, which only keeps the mapped settings, in this browser.</li>
       <li><b>Add from Protein</b> waits for a sound. On the Protein, press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. The file is named after the sound, and <b>Rename</b> renames the file, not the sound on the Protein. .syx files you put in the folder yourself show up too.</li>
@@ -397,7 +419,7 @@
       <li><b>Chain</b> takes pattern numbers such as <b>1 1 2 3</b>. Tick <b>On</b> and Play goes through them in order, looping.</li>
       <li><b>Knobs</b> opens a lane under the grid to draw how a mapped setting moves through the pattern, on any layer: the list names each setting's layer first. Alt-drag erases, and <b>Copy all to</b> copies the movements to another pattern.</li>
       <li>Patterns 1-16 are stored in this browser. <b>Back up</b> saves them with your saved sounds and mappings to one file, and <b>Restore</b> loads it back. <b>Export MIDI</b> and <b>Import MIDI</b> work with one pattern at a time.</li>
-      <li><b>Sync</b> plays this page together with <a href="https://pzuzarte.github.io/s1-grid/" target="_blank" rel="noopener">S-1 Grid</a> and <a href="https://pzuzarte.github.io/mpc-grid/" target="_blank" rel="noopener">MPC Grid</a> when they're open in the same browser. Play, stop and tempo are shared.</li>
+      <li><b>Sync</b> plays this page together with the other grids, S-1 Grid, Protein Grid, Bass Station Grid, MPC Grid and TD-3 Grid, when they're open in the same browser, each with its MIDI connected and Sync ticked. Pressing Play or Stop on any of them starts or stops them all, from the start of their patterns, at the tempo of the page you pressed, and changing the BPM on one changes them all. The badge beside Sync shows which pages are linked. <a href="https://pzuzarte.github.io/song-grid/" target="song-grid">Song Grid</a> arranges their patterns into a song and plays them through Sync. The <b>Tools</b> menu at the top opens any of them.</li>
       <li><b>Send clock</b> sends MIDI clock with playback. With <b>Sync Source</b> set to Extern in the Protein's settings, its arpeggiator, sequencer and clocked LFOs follow this page's tempo.</li>
     </ul>
 
@@ -419,5 +441,14 @@
 <script src="backup.js"></script>
 <script src="recorder.js"></script>
 <script src="app.js"></script>
+<script>
+  // The tools menu closes when you click elsewhere or press Escape.
+  document.addEventListener("click", (event) => {
+    for (const menu of document.querySelectorAll(".tool-menu[open]")) if (!menu.contains(event.target)) menu.open = false;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") for (const menu of document.querySelectorAll(".tool-menu[open]")) menu.open = false;
+  });
+</script>
 </body>
 </html>
