@@ -2441,6 +2441,21 @@ function renderPeers(names) {
 }
 
 // Plays together with the other grid when both are open. See sync.js.
+// What Song Grid keeps of this grid for a song: its patterns, and its sound where it has
+// one. See sync.js.
+function collectAssets() {
+  const patterns = state.slots.map((item, index) => ({ item, index }))
+    .filter(({ item }) => item.notes.length || (item.lanes && Object.keys(item.lanes).length))
+    .map(({ item, index }) => ({
+      id: `slot:${index}`, ref: index, label: `Pattern ${index + 1}`,
+      length: `${item.bars} bar${item.bars === 1 ? "" : "s"}`, notes: item.notes.length, data: JSON.parse(JSON.stringify(item)),
+    }));
+  const sound = Object.keys(state.values).length
+    ? { label: "The settings in Protein Grid's controls", data: { values: { ...state.values } } }
+    : null;
+  return { patterns, sound };
+}
+
 const link = Sync.connect({
   name: "Protein Grid",
   checkbox: $("sync"),
@@ -2457,6 +2472,7 @@ const link = Sync.connect({
   },
   stop: () => stop({ fromLink: true }),
   song: (part) => { pendingSong = part; },
+  assets: collectAssets,
   songMoved(data) {
     const move = song && Sync.songMove(data, song.bars);
     if (move) song.moves.push(move);
