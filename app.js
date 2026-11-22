@@ -46,6 +46,7 @@ const state = {
   reading: null,
   dump: null,
   teach: null,
+  capture: null, // While capturing presets: see toggleCapture.
   readMap: null,
   librarySearch: "",
   sendWarned: false,
@@ -1480,7 +1481,8 @@ function handleMidiInput(event, port) {
   if (recorder.message(event, port)) return;
   if (port !== state.input) return;
   if (event.data[0] === 0xF0) {
-    collectDump(event.data);
+    if (state.capture) captureMessage(event.data);
+    else collectDump(event.data);
     return;
   }
   const [status, first, second] = event.data;
@@ -1526,6 +1528,10 @@ function listen(message, forLibrary = false) {
 }
 
 async function startReading(forLibrary = false) {
+  if (state.capture) {
+    setStatus("Stop capturing presets first.", true);
+    return;
+  }
   if (state.reading) {
     stopReading("Stopped waiting for a sound dump.");
     return;
@@ -1597,6 +1603,10 @@ function showDump(dump) {
 async function startTeaching() {
   if (state.teach) {
     endTeaching("Stopped teaching. Nothing was changed.");
+    return;
+  }
+  if (state.capture) {
+    setStatus("Stop capturing presets first.", true);
     return;
   }
   const ids = ProteinParams.ALL.map((param) => param.id).filter((id) => state.mappings[id] !== undefined);
@@ -1900,6 +1910,104 @@ async function addToLibrary(messages, from, { quiet = false } = {}) {
   return true;
 }
 
+/* ---------- Capturing presets ---------- */
+
+/* The Protein can't be asked for its sounds, so capturing keeps listening, and saves each
+   sound it sends into the library as it arrives. Step through the presets on the Protein,
+   pressing Send on each, to fill the library with them. Sounds already there are skipped. */
+const CAPTURE_STALL_MS = 3000; // A sound that stops arriving partway didn't come through.
+
+async function toggleCapture() {
+  if (state.capture) {
+    stopCapture();
+    return;
+  }
+  if (state.reading || state.teach) {
+    setStatus("Finish reading or teaching first.", true);
+    return;
+  }
+  if (!libraryReady()) return;
+  if (!(await allowSysex())) return;
+  state.capture = { take: ProteinLibrary.collector(), saved: 0, already: 0, broken: 0, failed: 0, last: "", stall: null, queue: Promise.resolve() };
+  renderCapture();
+  setStatus(`Capturing presets. On the Protein, choose a preset, then press Presets, open the Actions menu and choose Send. Do the same for each preset you want. Click Stop capture when you're done.`);
+}
+
+function captureMessage(data) {
+  const capture = state.capture;
+  const { dump, broken } = capture.take.add(Array.from(data));
+  window.clearTimeout(capture.stall);
+  if (broken) noteBroken(capture);
+  if (capture.take.pending()) {
+    capture.stall = window.setTimeout(() => {
+      if (state.capture !== capture || !capture.take.pending()) return;
+      capture.take.reset();
+      noteBroken(capture);
+    }, CAPTURE_STALL_MS);
+  }
+  // Saved one at a time, so the same sound sent twice is only saved once.
+  if (dump) capture.queue = capture.queue.then(() => keepCaptured(capture, dump));
+}
+
+// Noted in turn with the sounds being saved, so the status keeps to the order they came in.
+function noteBroken(capture) {
+  capture.queue = capture.queue.then(() => noteBrokenNow(capture));
+}
+
+function noteBrokenNow(capture) {
+  capture.broken += 1;
+  capture.last = "A sound didn't arrive whole, so it wasn't saved. Send it again.";
+  if (state.capture === capture) renderCapture();
+}
+
+async function keepCaptured(capture, messages) {
+  let name = "Untitled";
+  try {
+    name = ProteinDump.parse(messages).name || name;
+  } catch {
+    // The library names it.
+  }
+  if (library.items.some((item) => sameBytes(item.bytes, messages.flat()))) {
+    capture.already += 1;
+    capture.last = `"${name}" is in the library already.`;
+  } else if (await addToLibrary(messages, "Captured from the Protein", { quiet: true })) {
+    capture.saved += 1;
+    capture.last = `Saved "${name}".`;
+  } else {
+    capture.failed += 1;
+    capture.last = `Couldn't save "${name}" to the library folder.`;
+  }
+  if (state.capture === capture) renderCapture();
+}
+
+function captureSummary(capture) {
+  const parts = [`${plural(capture.saved, "sound")} saved`];
+  if (capture.already) parts.push(`${capture.already} already in the library`);
+  if (capture.broken) parts.push(`${capture.broken} that didn't arrive whole`);
+  if (capture.failed) parts.push(`${capture.failed} that couldn't be saved`);
+  return parts.join(", ");
+}
+
+function renderCapture() {
+  const capture = state.capture;
+  $("library-capture").textContent = capture ? `Stop capture (${capture.saved})` : "Capture presets";
+  $("library-capture").setAttribute("aria-pressed", String(Boolean(capture)));
+  $("library-add").disabled = Boolean(capture) || library.status !== "ready";
+  if (capture) setStatus(`Capturing: ${captureSummary(capture)}. ${capture.last}`, Boolean(capture.failed));
+}
+
+async function stopCapture() {
+  const capture = state.capture;
+  if (!capture) return;
+  window.clearTimeout(capture.stall);
+  state.capture = null;
+  renderCapture();
+  // Lets a sound that has just arrived finish saving.
+  await capture.queue;
+  const resend = capture.broken ? " Send any that didn't arrive whole again, with Add from Protein." : "";
+  setStatus(`Stopped capturing: ${captureSummary(capture)}.${resend}`, Boolean(capture.failed));
+}
+
 function libraryDump(item) {
   try {
     const [messages] = ProteinLibrary.split(item.bytes);
@@ -2023,7 +2131,8 @@ function renderLibrary() {
   $("library-folder").disabled = library.status === "unsupported";
   const skipped = library.skipped ? ` ${library.skipped} files there aren't single Protein sounds, so they're left out.` : "";
   $("library-state").textContent = ready ? `"${library.folder.name}": ${plural(library.items.length, "sound")}.${skipped}` : folderState[1];
-  for (const id of ["library-add", "library-import", "library-export-all", "library-search"]) $(id).disabled = !ready;
+  for (const id of ["library-add", "library-capture", "library-import", "library-export-all", "library-search"]) $(id).disabled = !ready;
+  if (state.capture) $("library-add").disabled = true;
 
   const words = state.librarySearch.toLowerCase().split(/\s+/).filter(Boolean);
   const fromOf = (item) => library.info[item.name]?.from || "";
@@ -2156,6 +2265,20 @@ let song = null;
 let pendingSong = null;
 
 // Called at the start of each chunk. Returns false once the song has ended.
+// What a song's cue asks for besides its pattern: a tempo, and a preset by program change.
+function setSongBpm(bpm) {
+  if (bpm === currentBpm()) return;
+  state.bpm = bpm;
+  $("bpm").value = bpm;
+}
+
+function sendProgram(program, atTime) {
+  if (state.output) state.output.send([0xC0 | state.channel, program], atTime);
+}
+
+// Notes shift by the song section's transpose, kept in range.
+const songNote = (note) => Math.max(0, Math.min(127, note + (song?.transpose || 0)));
+
 function followSong() {
   if (song.pulse % BAR !== 0) return true;
   // Each bar after the first moves the song on, following any move from Song Grid.
@@ -2166,19 +2289,26 @@ function followSong() {
   }
   const bar = song.bar;
   const cue = Sync.songCue(song, bar);
-  if (!cue) return true;
-  song.muted = cue.pattern === null;
-  if (!song.muted && cue.pattern !== state.current) switchTo(cue.pattern);
-  state.nextPulse = 0;
-  setStatus(song.muted ? `Song: silent from bar ${bar + 1}.` : `Song: pattern ${cue.pattern + 1} from bar ${bar + 1}.`);
+  if (cue) {
+    song.off = cue.pattern === null;
+    if (!song.off && cue.pattern !== state.current) switchTo(cue.pattern);
+    song.transpose = cue.transpose || 0;
+    if (cue.bpm) setSongBpm(cue.bpm);
+    if (Number.isInteger(cue.program)) sendProgram(cue.program, state.nextTime);
+    state.nextPulse = 0;
+    setStatus(song.off ? `Song: silent from bar ${bar + 1}.` : `Song: pattern ${cue.pattern + 1} from bar ${bar + 1}.`);
+  }
+  // Song Grid's mute and solo buttons can silence this grid from any bar.
+  song.muted = song.off || Sync.songSilenced(song);
   return true;
 }
 
 function schedule() {
   const horizon = performance.now() + SCHEDULE_AHEAD_MS;
-  const ms = msPerPulse();
+  let ms = msPerPulse();
   while (state.nextTime < horizon) {
     if (song && !followSong()) return;
+    ms = msPerPulse(); // A song can change the tempo at a bar.
     const playing = song?.muted ? { notes: [], bars: slot().bars } : slot();
     const from = state.nextPulse;
     const to = from + CHUNK_PULSES;
@@ -2190,7 +2320,7 @@ function schedule() {
     for (const note of playing.notes) {
       if (note.time >= from && note.time < to && Math.random() * 100 < (note.probability ?? 100)) {
         for (const part of Music.noteParts(note)) {
-          sendNote(note.note, note.velocity, state.nextTime + (part.time - from) * ms, part.length * ms);
+          sendNote(songNote(note.note), note.velocity, state.nextTime + (part.time - from) * ms, part.length * ms);
         }
       }
     }
@@ -2971,6 +3101,9 @@ function bindControls() {
   $("library-folder").addEventListener("click", chooseLibraryFolder);
   $("library-add").addEventListener("click", () => {
     if (libraryReady()) startReading(true);
+  });
+  $("library-capture").addEventListener("click", () => {
+    if (state.capture || libraryReady()) toggleCapture();
   });
   $("library-import").addEventListener("click", () => $("library-import-file").click());
   $("library-import-file").addEventListener("change", (event) => {

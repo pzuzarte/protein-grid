@@ -43,7 +43,38 @@ const ProteinLibrary = (() => {
     return dumps;
   }
 
-  return { messages, split };
+  /* Gathers dumps as their messages arrive, for capturing one sound after another.
+     add(message) gives { dump } when the message completes one, and broken: true when a
+     dump's messages came out of order or one went missing, so that sound needs sending
+     again. Messages that aren't part of a dump are ignored. */
+  function collector() {
+    let current = null;
+    return {
+      add(message) {
+        if (!isDumpMessage(message)) return { broken: false };
+        const [count, number] = [message[6], message[7]];
+        let broken = false;
+        if (number === 1) {
+          broken = Boolean(current);
+          current = { count, list: [] };
+        } else if (!current || count !== current.count || number !== current.list.length + 1) {
+          current = null;
+          return { broken: true };
+        }
+        current.list.push(message);
+        if (current.list.length < count) return { broken };
+        const dump = current.list;
+        current = null;
+        return { dump, broken };
+      },
+      pending: () => Boolean(current),
+      reset() {
+        current = null;
+      },
+    };
+  }
+
+  return { collector, messages, split };
 })();
 
 if (typeof module !== "undefined") module.exports = ProteinLibrary;

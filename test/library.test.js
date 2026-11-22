@@ -32,3 +32,31 @@ test("a dump missing a message is left out", () => {
   assert.equal(found.length, 1);
   assert.equal(ProteinDump.parse(found[0]).name, "Whole");
 });
+
+test("capturing gathers one sound after another, and notices one that broke", () => {
+  const take = ProteinLibrary.collector();
+  const results = (messages) => messages.map((message) => take.add(message));
+  const first = dump("Soft Dist", 3);
+  const second = dump("Glass", 2);
+  let seen = results(first);
+  assert.deepEqual(seen.map((item) => Boolean(item.dump)), [false, false, true]);
+  assert.deepEqual(seen[2].dump, first);
+  assert.equal(take.pending(), false);
+  // Something else on the way is ignored.
+  assert.deepEqual(take.add([0xF0, 0x41, 0x10, 0x42, 0xF7]), { broken: false });
+  // A message goes missing: that sound is broken, and the next one still arrives whole.
+  const broken = dump("Broken", 3);
+  seen = results([broken[0], broken[2]]);
+  assert.equal(seen[1].broken, true);
+  seen = results(second);
+  assert.equal(ProteinDump.parse(seen[1].dump).name, "Glass");
+  // A new sound starting before the last finished means the last one broke.
+  results([broken[0], broken[1]]);
+  assert.equal(take.pending(), true);
+  seen = results(second);
+  assert.equal(seen[0].broken, true);
+  assert.deepEqual(seen[1].dump, second);
+  take.add(broken[0]);
+  take.reset();
+  assert.equal(take.pending(), false);
+});
