@@ -2488,6 +2488,62 @@ async function loadAssets(assets) {
   return reportLoaded([patterns, sound], Boolean(patterns || values) && (!values || Boolean(state.output)));
 }
 
+/* What this grid can offer Song Grid for a song, to pick from: the patterns in its slots,
+   those in its library, and sounds. fetchPicked gives the ones picked, as assets. Library
+   patterns come without a pattern number, as Song Grid chooses one. See sync.js. */
+const barsText = (bars) => `${bars} bar${bars === 1 ? "" : "s"}`;
+const notesText = (count) => `${count} note${count === 1 ? "" : "s"}`;
+const filledSlots = () => state.slots.map((item, index) => ({ item, index }))
+  .filter(({ item }) => item.notes.length || (item.lanes && Object.keys(item.lanes).length));
+const slotAsset = ({ item, index }) => ({
+  id: `slot:${index}`, ref: index, label: `Pattern ${index + 1}`, length: barsText(item.bars), notes: item.notes.length, data: JSON.parse(JSON.stringify(item)),
+});
+const slotChoices = () => filledSlots().map(({ item, index }) => ({ id: `slot:${index}`, label: `Pattern ${index + 1}`, meta: `${barsText(item.bars)}, ${notesText(item.notes.length)}` }));
+
+function pickedSlots(ids) {
+  return ids.map((id) => /^slot:(\d+)$/.exec(id)).filter((match) => match && state.slots[Number(match[1])])
+    .map((match) => slotAsset({ item: state.slots[Number(match[1])], index: Number(match[1]) }));
+}
+
+const savedPatternById = (id) => patterns.items.find((item) => `file:${item.name}` === id);
+const soundById = (id) => (library.status === "ready" ? library.items.find((item) => `lib:${item.name}` === id) : null);
+
+function catalog() {
+  const ready = library.status === "ready";
+  return {
+    grid: slotChoices(),
+    patterns: ready ? patterns.items.map((item) => ({ id: `file:${item.name}`, label: item.name, meta: `${barsText(item.bars)}, ${notesText(item.notes.length)}` })) : [],
+    sounds: [
+      ...(Object.keys(state.values).length ? [{ id: "current", label: "The settings in the controls", meta: "As they are now" }] : []),
+      ...(ready ? library.items.map((item) => ({ id: `lib:${item.name}`, label: item.name, meta: "Mapped settings" })) : []),
+    ],
+    note: ready ? "" : "Choose the library folder in Protein Grid to pick from its saved patterns and sounds too.",
+  };
+}
+
+function fetchPicked({ patterns: ids = [], sound = null } = {}) {
+  const list = Array.isArray(ids) ? ids : [];
+  const picked = pickedSlots(list);
+  for (const id of list) {
+    const item = savedPatternById(id);
+    if (!item) continue;
+    const data = { bars: item.bars, notes: JSON.parse(JSON.stringify(item.notes)) };
+    if (item.lanes) data.lanes = JSON.parse(JSON.stringify(item.lanes));
+    picked.push({ id, ref: null, label: item.name, length: barsText(item.bars), notes: item.notes.length, data });
+  }
+  let kept = null;
+  if (sound === "current") kept = collectAssets().sound;
+  else if (soundById(sound)) {
+    // Only the settings the page has mapped can be read from a sound, and sent.
+    if (!state.readMap) throw new Error("Click Teach reading on Protein Grid's Synth tab once first, so it can read your mapped settings from its sounds.");
+    const item = soundById(sound);
+    const found = libraryDump(item);
+    if (!found) throw new Error(`"${item.name}" can't be read.`);
+    kept = { label: item.name, data: { values: onLayer(ProteinDump.read(found.dump.values, state.readMap.map, state.readMap.fx)) } };
+  }
+  return { patterns: picked, sound: kept };
+}
+
 // What Song Grid keeps of this grid for a song: its patterns, and its sound where it has
 // one. See sync.js.
 function collectAssets() {
@@ -2521,6 +2577,7 @@ const link = Sync.connect({
   song: (part) => { pendingSong = part; },
   assets: collectAssets,
   loadAssets,
+  answers: { catalog, fetch: fetchPicked },
   songMoved(data) {
     const move = song && Sync.songMove(data, song.bars);
     if (move) song.moves.push(move);
