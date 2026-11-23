@@ -295,6 +295,11 @@ button.primary { min-width: 68px; background: var(--accent); border-color: var(-
 .library-list { margin: 0; padding: 0; list-style: none; }
 .library-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 5px 0; border-top: 1px solid var(--line); }
 .library-row button { height: 26px; padding: 0 8px; font-size: 12px; }
+.search-row { display: flex; gap: 6px; }
+.search-row #library-search { flex: 1; min-width: 0; }
+.search-row button { flex: none; height: 30px; }
+.library-row .favourite { width: 28px; padding: 0; color: var(--muted); font-size: 15px; line-height: 1; background: none; border-color: transparent; }
+.library-row .favourite[aria-pressed="true"] { color: var(--accent); }
 .library-name { flex: 1; min-width: 160px; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .library-name small { display: block; color: var(--muted); font-size: 11px; }
 

@@ -49,6 +49,7 @@ const state = {
   capture: null, // While capturing presets: see toggleCapture.
   readMap: null,
   librarySearch: "",
+  favouritesOnly: false, // The Sound library shows only favourites.
   sendWarned: false,
   page: 0,
   pageBars: 1,
@@ -99,7 +100,7 @@ function saveSoon() {
     const saved = {};
     for (const key of ["root", "scale", "moveNotes", "slots", "current", "bpm", "channel", "chord",
       "newLength", "lowOctave", "span", "showAll", "keyOff", "baseResolution", "triplets", "view", "layer", "sounds", "mappings",
-      "chain", "chainOn", "showLane", "laneParam", "readMap"]) {
+      "favouritesOnly", "chain", "chainOn", "showLane", "laneParam", "readMap"]) {
       saved[key] = state[key];
     }
     try {
@@ -2117,6 +2118,22 @@ function actionButton(label, title, onClick) {
   return button;
 }
 
+// Favourites are kept with each sound's details in the library folder's info file.
+const isFavourite = (item) => Boolean(library.info[item.name]?.favourite);
+
+async function toggleFavourite(item) {
+  const details = { ...(library.info[item.name] || {}) };
+  if (details.favourite) delete details.favourite;
+  else details.favourite = true;
+  library.info[item.name] = details;
+  try {
+    await library.saveInfo();
+  } catch (error) {
+    setStatus(`Couldn't save favourites to the library folder: ${error.message}`, true);
+  }
+  renderLibrary();
+}
+
 function renderLibrary() {
   renderPatterns();
   const ready = library.status === "ready";
@@ -2136,18 +2153,31 @@ function renderLibrary() {
 
   const words = state.librarySearch.toLowerCase().split(/\s+/).filter(Boolean);
   const fromOf = (item) => library.info[item.name]?.from || "";
-  const shown = ready ? library.items.filter((item) => words.every((word) => `${item.name} ${fromOf(item)}`.toLowerCase().includes(word))) : [];
-  $("library-empty").hidden = !ready || library.items.length > 0;
+  const shown = ready ? library.items.filter((item) => (!state.favouritesOnly || isFavourite(item))
+    && words.every((word) => `${item.name} ${fromOf(item)}`.toLowerCase().includes(word))) : [];
+  $("favourites-only").setAttribute("aria-pressed", String(state.favouritesOnly));
+  $("favourites-only").disabled = !ready;
+  $("library-empty").hidden = !ready || shown.length > 0;
+  $("library-empty").textContent = !library.items.length
+    ? "No sounds in this folder yet. Add one from the Protein, or import a .syx file."
+    : state.favouritesOnly && !library.items.some(isFavourite)
+      ? "No favourites yet. Click the star beside a sound to make it one."
+      : "No sounds match.";
   $("library-list").replaceChildren(...shown.map((item) => {
     const row = document.createElement("li");
     row.className = "library-row";
+    const favourite = isFavourite(item);
+    const star = actionButton(favourite ? "\u2605" : "\u2606", favourite ? "Remove from favourites" : "Add to favourites", () => toggleFavourite(item));
+    star.className = "favourite";
+    star.setAttribute("aria-pressed", String(favourite));
+    star.setAttribute("aria-label", `${favourite ? "Remove" : "Add"} ${item.name} ${favourite ? "from" : "to"} favourites`);
     const text = document.createElement("span");
     text.className = "library-name";
     text.textContent = item.name;
     const from = document.createElement("small");
     from.textContent = fromOf(item) || "Added to the folder by hand";
     text.append(from);
-    row.append(text,
+    row.append(star, text,
       actionButton("Load settings", "Send this sound's mapped settings to the Protein", () => loadLibrarySettings(item)),
       actionButton("Send whole sound", "Send the complete sound to the Protein. Not yet tried on a Protein.", () => sendWholeSound(item)),
       actionButton("Rename", "Rename this sound and its file", async () => {
@@ -2645,7 +2675,7 @@ function catalog() {
     patterns: ready ? patterns.items.map((item) => ({ id: `file:${item.name}`, label: item.name, meta: `${barsText(item.bars)}, ${notesText(item.notes.length)}` })) : [],
     sounds: [
       ...(Object.keys(state.values).length ? [{ id: "current", label: "The settings in the controls", meta: "As they are now" }] : []),
-      ...(ready ? library.items.map((item) => ({ id: `lib:${item.name}`, label: item.name, meta: "Mapped settings" })) : []),
+      ...(ready ? library.items.map((item) => ({ id: `lib:${item.name}`, label: item.name, meta: "Mapped settings", favourite: isFavourite(item) })) : []),
     ],
     note: ready ? "" : "Choose the library folder in Protein Grid to pick from its saved patterns and sounds too.",
   };
@@ -3120,6 +3150,11 @@ function bindControls() {
   });
   $("library-search").addEventListener("input", (event) => {
     state.librarySearch = event.target.value;
+    renderLibrary();
+  });
+  $("favourites-only").addEventListener("click", () => {
+    state.favouritesOnly = !state.favouritesOnly;
+    saveSoon();
     renderLibrary();
   });
   $("map-skip").addEventListener("click", nextMapping);
