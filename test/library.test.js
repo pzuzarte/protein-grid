@@ -43,7 +43,7 @@ test("capturing gathers one sound after another, and notices one that broke", ()
   assert.deepEqual(seen[2].dump, first);
   assert.equal(take.pending(), false);
   // Something else on the way is ignored.
-  assert.deepEqual(take.add([0xF0, 0x41, 0x10, 0x42, 0xF7]), { broken: false });
+  assert.deepEqual(take.add([0xF0, 0x41, 0x10, 0x42, 0xF7]), { broken: false, other: true });
   // A message goes missing: that sound is broken, and the next one still arrives whole.
   const broken = dump("Broken", 3);
   seen = results([broken[0], broken[2]]);

@@ -51,7 +51,7 @@ const ProteinLibrary = (() => {
     let current = null;
     return {
       add(message) {
-        if (!isDumpMessage(message)) return { broken: false };
+        if (!isDumpMessage(message)) return { broken: false, other: true };
         const [count, number] = [message[6], message[7]];
         let broken = false;
         if (number === 1) {

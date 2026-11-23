@@ -1936,7 +1936,16 @@ async function toggleCapture() {
 
 function captureMessage(data) {
   const capture = state.capture;
-  const { dump, broken } = capture.take.add(Array.from(data));
+  const { dump, broken, other } = capture.take.add(Array.from(data));
+  if (other) {
+    // Not part of a sound, so it's reported rather than passed over without a word.
+    const start = hex(data.slice(0, 8));
+    capture.queue = capture.queue.then(() => {
+      capture.last = `The Protein sent a SysEx message that isn't a sound dump (${data.length} bytes, starting ${start}), so nothing was saved.`;
+      if (state.capture === capture) renderCapture();
+    });
+    return;
+  }
   window.clearTimeout(capture.stall);
   if (broken) noteBroken(capture);
   if (capture.take.pending()) {
