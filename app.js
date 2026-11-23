@@ -2028,14 +2028,26 @@ function loadLibrarySettings(item) {
   const found = libraryDump(item);
   if (!found) return;
   const values = ProteinDump.read(found.dump.values, state.readMap.map, state.readMap.fx);
+  const read = Object.keys(values).length;
+  if (!read) {
+    setStatus(`Teach reading didn't learn where any settings are, so nothing could be read from "${item.name}". Map some settings on the Synth tab, then click Teach reading again.`, true);
+    return;
+  }
+  const keyed = onLayer(values);
+  const mapped = Object.keys(keyed).filter((key) => knownKey(key) && state.mappings[key] !== undefined).length;
   state.varyOriginal = layerValues();
   state.varyLatest = null;
-  applySound(onLayer(values));
+  applySound(keyed);
   state.varyLatest = layerValues();
   renderVary(false);
   saveSoon();
-  const sent = state.output ? `Sent ${plural(Object.keys(values).length, "mapped setting")} of "${item.name}".` : `Loaded "${item.name}" on the Synth tab, but no MIDI output is connected.`;
-  setStatus(`${sent} Unmapped settings stay as they are on the Protein. Hear original on the Synth tab brings back the sound you had.`, !state.output);
+  const layer = `layer ${state.layer}`;
+  let sent;
+  if (!state.output) sent = `Loaded "${item.name}" on the Synth tab, but no MIDI output is connected, so nothing reached the Protein.`;
+  else if (!mapped) sent = `Read ${plural(read, "setting")} from "${item.name}", but none of them is mapped on ${layer}, so nothing was sent.${state.layer === "A" ? "" : " Switch to layer A, or map them on this layer."}`;
+  else if (mapped < read) sent = `Sent ${mapped} of the ${plural(read, "setting")} read from "${item.name}". ${read - mapped === 1 ? "The other one isn't" : `The other ${read - mapped} aren't`} mapped on ${layer}.`;
+  else sent = `Sent ${plural(read, "setting")} of "${item.name}".`;
+  setStatus(`${sent} Only settings Teach reading found are sent; the rest of the sound stays as it is on the Protein. Hear original on the Synth tab brings back the sound you had.`, !state.output || !mapped);
 }
 
 // The dump exactly as it arrived, a message at a time, so the Protein can keep up.
