@@ -22,9 +22,14 @@ const ProteinDump = (() => {
     return view.getFloat32(0);
   }
 
+  // What the Protein sends for an empty preset slot: a dump with nothing in it.
+  const isEmpty = (message) => message.length === 6 && HEADER.every((byte, at) => message[at] === byte)
+    && message[4] === 0x10 && message[5] === 0xF7;
+
   // The messages of one dump, as arrays of bytes, to its name and settings.
   function parse(messages) {
     if (!messages.length) throw new Error("Nothing arrived.");
+    if (messages.every(isEmpty)) throw new Error("The Protein sent an empty sound, so that preset slot looks empty. There's nothing in it to read.");
     const values = {};
     let name = "";
     messages.forEach((message, index) => {
@@ -180,7 +185,7 @@ const ProteinDump = (() => {
     return result;
   }
 
-  return { FX_PREFIXES, GUESSES, STEPPED, learn, parse, read, steppedCc, teachValues };
+  return { FX_PREFIXES, GUESSES, STEPPED, isEmpty, learn, parse, read, steppedCc, teachValues };
 })();
 
 if (typeof module !== "undefined") module.exports = ProteinDump;

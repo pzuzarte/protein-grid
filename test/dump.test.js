@@ -67,6 +67,8 @@ test("damaged, partial or unrelated dumps are refused", () => {
   assert.throws(() => ProteinDump.parse(damaged), /damaged/);
   assert.throws(() => ProteinDump.parse(good.slice(0, 1)), /Only 1 of its 2/);
   assert.throws(() => ProteinDump.parse([[0xF0, 0x41, 0x10, 0x00, 0x10, 1, 1, 1, 0, 0xF7]]), /isn't a Protein/);
+  assert.throws(() => ProteinDump.parse([[0xF0, 0x3E, 0x2F, 0x00, 0x10, 0xF7]]), /empty sound/);
+  assert.equal(ProteinDump.isEmpty([0xF0, 0x3E, 0x2F, 0x00, 0x10, 0xF7]), true);
   assert.throws(() => ProteinDump.parse([]), /Nothing arrived/);
 });
 

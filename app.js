@@ -1934,14 +1934,27 @@ async function toggleCapture() {
   setStatus(`Capturing presets. On the Protein, choose a preset, then press Presets, open the Actions menu and choose Send. Do the same for each preset you want. Click Stop capture when you're done.`);
 }
 
+// Runs one step after the last, so a step that fails is reported, and doesn't stop the ones after it.
+function queueCapture(capture, step) {
+  capture.queue = capture.queue.then(step).catch((error) => {
+    capture.failed += 1;
+    capture.last = `Something went wrong saving a sound: ${String(error.message).replace(/\.?$/, ".")}`;
+    if (state.capture === capture) renderCapture();
+  });
+}
+
 function captureMessage(data) {
   const capture = state.capture;
+  capture.heard = new Date();
   const { dump, broken, other } = capture.take.add(Array.from(data));
   if (other) {
     // Not part of a sound, so it's reported rather than passed over without a word.
     const start = hex(data.slice(0, 8));
-    capture.queue = capture.queue.then(() => {
-      capture.last = `The Protein sent a SysEx message that isn't a sound dump (${data.length} bytes, starting ${start}), so nothing was saved.`;
+    const empty = ProteinDump.isEmpty(Array.from(data));
+    queueCapture(capture, () => {
+      capture.last = empty
+        ? "The Protein sent an empty sound, so that preset slot looks empty. Nothing to save."
+        : `The Protein sent a SysEx message that isn't a sound dump (${data.length} bytes, starting ${start}), so nothing was saved.`;
       if (state.capture === capture) renderCapture();
     });
     return;
@@ -1956,12 +1969,12 @@ function captureMessage(data) {
     }, CAPTURE_STALL_MS);
   }
   // Saved one at a time, so the same sound sent twice is only saved once.
-  if (dump) capture.queue = capture.queue.then(() => keepCaptured(capture, dump));
+  if (dump) queueCapture(capture, () => keepCaptured(capture, dump));
 }
 
 // Noted in turn with the sounds being saved, so the status keeps to the order they came in.
 function noteBroken(capture) {
-  capture.queue = capture.queue.then(() => noteBrokenNow(capture));
+  queueCapture(capture, () => noteBrokenNow(capture));
 }
 
 function noteBrokenNow(capture) {
@@ -2003,7 +2016,9 @@ function renderCapture() {
   $("library-capture").textContent = capture ? `Stop capture (${capture.saved})` : "Capture presets";
   $("library-capture").setAttribute("aria-pressed", String(Boolean(capture)));
   $("library-add").disabled = Boolean(capture) || library.status !== "ready";
-  if (capture) setStatus(`Capturing: ${captureSummary(capture)}. ${capture.last}`, Boolean(capture.failed));
+  if (!capture) return;
+  const heard = capture.heard ? ` Last heard from the Protein at ${capture.heard.toLocaleTimeString()}.` : " Nothing heard from the Protein yet.";
+  setStatus(`Capturing: ${captureSummary(capture)}. ${capture.last}${heard}`, Boolean(capture.failed));
 }
 
 async function stopCapture() {
