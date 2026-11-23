@@ -29,7 +29,7 @@ const ProteinDump = (() => {
   // The messages of one dump, as arrays of bytes, to its name and settings.
   function parse(messages) {
     if (!messages.length) throw new Error("Nothing arrived.");
-    if (messages.every(isEmpty)) throw new Error("The Protein sent an empty sound, so that preset slot looks empty. There's nothing in it to read.");
+    if (messages.every(isEmpty)) throw new Error("The Protein sent this sound with nothing in it. Either the slot is empty, or it's one the Protein won't send, as happens from slot 117 up. Save it into a free slot at 116 or below on the Protein, and send it from there.");
     const values = {};
     let name = "";
     messages.forEach((message, index) => {

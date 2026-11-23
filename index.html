@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Protein Grid</title>
-<link rel="stylesheet" href="style.css?v=202611222333">
+<link rel="stylesheet" href="style.css?v=202611222346">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
   try { if (localStorage.getItem("protein-grid-theme") === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -384,7 +384,7 @@
       <li>The library keeps whole sounds, every setting and layer, exactly as the Protein sent them. It's a folder on this computer that you choose with <b>Choose library folder</b>, and each sound is saved there as its own .syx file, named after the sound. That keeps them even if the browser's data is cleared, and your usual backups include them. Where each came from is kept in <b>library-info.json</b> in the same folder. After Chrome restarts, click <b>Allow library folder</b> to use it again.</li>
       <li>This is separate from <b>Save sound</b> on the Synth tab, which only keeps the mapped settings, in this browser.</li>
       <li><b>Add from Protein</b> waits for a sound. On the Protein, press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. The file is named after the sound, and <b>Rename</b> renames the file, not the sound on the Protein. Click the star beside a sound to make it a favourite, and <b>Favourites</b> beside the search shows only those. Favourites are kept in library-info.json in the library folder, so they stay with your sounds. .syx files you put in the folder yourself show up too.</li>
-      <li><b>Capture presets</b> fills the library with the Protein's presets, its factory ones included. The Protein can't be asked for its sounds, so it needs a Send for each: click <b>Capture presets</b>, then on the Protein choose a preset, press <b>Presets</b>, open the Actions menu and choose <b>Send</b>, and go on to the next. Each is saved as it arrives, named after the sound. Sounds already in the library are skipped, and the count shows how many were saved. If one doesn't arrive whole, it isn't saved, and the status says so: send it again. Click <b>Stop capture</b> when you're done.</li>
+      <li><b>Capture presets</b> fills the library with the Protein's presets, its factory ones included. The Protein can't be asked for its sounds, so it needs a Send for each: click <b>Capture presets</b>, then on the Protein choose a preset, press <b>Presets</b>, open the Actions menu and choose <b>Send</b>, and go on to the next. Each is saved as it arrives, named after the sound. Sounds already in the library are skipped, and the count shows how many were saved. If one doesn't arrive whole, it isn't saved, and the status says so: send it again. Click <b>Stop capture</b> when you're done. The Protein sends presets from slot 117 up with nothing in them, even when they hold a sound, so to capture one of those, save it into a free slot at 116 or below on the Protein and send it from there.</li>
       <li><b>Load settings</b> sends the sound's mapped settings as controllers, and shows them on the Synth tab. It needs <b>Teach reading</b> to have been done. Settings that aren't mapped stay as they are on the Protein.</li>
       <li><b>Send whole sound</b> sends the complete dump back to the Protein. This hasn't been tried on a Protein yet. It may replace the sound you're playing, and it isn't known whether it also writes over a memory slot, so keep a copy of anything you want first.</li>
       <li><b>Import .syx</b> adds every sound in a file to the folder, and <b>Export all</b> downloads the whole library as one file.</li>
@@ -437,15 +437,15 @@
   </div>
 </dialog>
 
-<script src="music.js?v=202611222333"></script>
-<script src="params.js?v=202611222333"></script>
-<script src="dump.js?v=202611222333"></script>
-<script src="library.js?v=202611222333"></script>
-<script src="folder.js?v=202611222333"></script>
-<script src="sync.js?v=202611222333"></script>
-<script src="backup.js?v=202611222333"></script>
-<script src="recorder.js?v=202611222333"></script>
-<script src="app.js?v=202611222333"></script>
+<script src="music.js?v=202611222346"></script>
+<script src="params.js?v=202611222346"></script>
+<script src="dump.js?v=202611222346"></script>
+<script src="library.js?v=202611222346"></script>
+<script src="folder.js?v=202611222346"></script>
+<script src="sync.js?v=202611222346"></script>
+<script src="backup.js?v=202611222346"></script>
+<script src="recorder.js?v=202611222346"></script>
+<script src="app.js?v=202611222346"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {

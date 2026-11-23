@@ -1953,7 +1953,7 @@ function captureMessage(data) {
     const empty = ProteinDump.isEmpty(Array.from(data));
     queueCapture(capture, () => {
       capture.last = empty
-        ? "The Protein sent an empty sound, so that preset slot looks empty. Nothing to save."
+        ? "That sound came with nothing in it, as slots from 117 up do. Save it to a slot at 116 or below and send it from there."
         : `The Protein sent a SysEx message that isn't a sound dump (${data.length} bytes, starting ${start}), so nothing was saved.`;
       if (state.capture === capture) renderCapture();
     });
@@ -2017,7 +2017,7 @@ function renderCapture() {
   $("library-capture").setAttribute("aria-pressed", String(Boolean(capture)));
   $("library-add").disabled = Boolean(capture) || library.status !== "ready";
   if (!capture) return;
-  const heard = capture.heard ? ` Last heard from the Protein at ${capture.heard.toLocaleTimeString()}.` : " Nothing heard from the Protein yet.";
+  const heard = capture.heard ? ` Last heard at ${capture.heard.toLocaleTimeString()}.` : " Nothing heard from the Protein yet.";
   setStatus(`Capturing: ${captureSummary(capture)}. ${capture.last}${heard}`, Boolean(capture.failed));
 }
 
