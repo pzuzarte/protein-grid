@@ -3107,6 +3107,28 @@ function fetchPicked({ patterns: ids = [], sound = null } = {}) {
   return { patterns: picked, sound: kept };
 }
 
+// Song Grid sends pattern files chosen on the computer, and this reads them as Load
+// pattern would, so they're kept with a song as this grid saves them, sound and name included.
+function readFilesForSong({ files = [] } = {}) {
+  const patterns = [];
+  const skipped = [];
+  for (const file of Array.isArray(files) ? files : []) {
+    const fileName = String(file?.name || "");
+    const item = Array.isArray(file?.bytes) ? readPatternFile(new Uint8Array(file.bytes)) : null;
+    if (!item) {
+      skipped.push(fileName || "A file");
+      continue;
+    }
+    const name = fileName.replace(/\.json$/i, "");
+    const data = { bars: item.bars, notes: JSON.parse(JSON.stringify(item.notes)), name };
+    if (item.lanes) data.lanes = JSON.parse(JSON.stringify(item.lanes));
+    const sound = item.sound ? JSON.parse(JSON.stringify(item.sound)) : null;
+    if (sound) data.sound = sound;
+    patterns.push({ id: `file:${name}`, ref: null, label: name, length: barsText(item.bars), notes: item.notes.length, data });
+  }
+  return { patterns, skipped };
+}
+
 // What Song Grid keeps of this grid for a song: its patterns, and its sound where it has
 // one. See sync.js.
 function collectAssets() {
@@ -3141,7 +3163,7 @@ const link = Sync.connect({
   song: (part) => { pendingSong = part; },
   assets: collectAssets,
   loadAssets,
-  answers: { catalog, fetch: fetchPicked },
+  answers: { catalog, fetch: fetchPicked, readFiles: readFilesForSong },
   songMoved(data) {
     const move = song && Sync.songMove(data, song.bars);
     if (move) song.moves.push(move);
