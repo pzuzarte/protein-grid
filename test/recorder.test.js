@@ -89,13 +89,22 @@ test("each pass of the loop adds to the take, and held notes keep their length",
   assert.equal(notes.length, 2, "nothing is recorded once stopped");
 });
 
-test("a set length is kept however long the key is held", () => {
+test("while playing, a note lasts as long as it's held, whatever the set length", () => {
   const { notes, clock, ui, send } = setUp({ fixed: 4 * STEP });
   ui.button.fire("click");
   send("Keystep", [0x90, 60, 100]);
   clock.pulse = 30;
   send("Keystep", [0x80, 60, 0]);
-  assert.equal(notes[0].length, 4 * STEP);
+  assert.equal(notes[0].length, 30);
+});
+
+test("a note whose key is still held can be told apart, so playback leaves it alone", () => {
+  const { notes, recorder, ui, send } = setUp();
+  ui.button.fire("click");
+  send("Keystep", [0x90, 60, 100]);
+  assert.equal(recorder.holding(notes[0]), true);
+  send("Keystep", [0x80, 60, 0]);
+  assert.equal(recorder.holding(notes[0]), false);
 });
 
 test("another keyboard is heard through the instrument, but the instrument's own keys aren't", () => {

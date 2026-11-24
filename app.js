@@ -2480,7 +2480,7 @@ function schedule() {
     if (from % PPQ === 0 && !state.sendOnce) click.at(state.nextTime, from % (4 * PPQ) === 0);
     if (!song?.muted) scheduleMotions(from, to, ms);
     for (const note of playing.notes) {
-      if (note.time >= from && note.time < to && Math.random() * 100 < (note.probability ?? 100)) {
+      if (note.time >= from && note.time < to && !recorder?.holding(note) && Math.random() * 100 < (note.probability ?? 100)) {
         for (const part of Music.noteParts(note)) {
           sendNote(songNote(note.note), note.velocity, state.nextTime + (part.time - from) * ms, part.length * ms);
         }

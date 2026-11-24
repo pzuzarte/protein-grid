@@ -120,7 +120,9 @@ const Recorder = (() => {
         time = step;
         last = at;
       }
-      const fixed = api.fixedLength(time);
+      // While playing, a note lasts as long as its key is held. Length only sets the
+      // length of notes added step by step.
+      const fixed = api.playing() ? null : api.fixedLength(time);
       const notes = api.notes();
       const existing = notes.find((n) => n.note === note && n.time === time);
       const item = existing || api.makeNote({ time, note, velocity: velocity / 127, length: fixed ?? api.resolution() });
@@ -142,6 +144,9 @@ const Recorder = (() => {
       held.item.length = heldLength(held.pulse, api.pulseAt(at), held.item.time, api.resolution(), api.length());
       api.lengthened(held.item);
     }
+
+    // A note whose key is still held, which playback leaves alone so it isn't cut short.
+    recorder.holding = (item) => [...open.values()].some((held) => held.item === item);
 
     // Returns true if the message was a note from the chosen input, whether or not it was recorded.
     recorder.message = (event, port) => {
