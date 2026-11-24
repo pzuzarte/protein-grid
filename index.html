@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Protein Grid</title>
-<link rel="stylesheet" href="style.css?v=202611232300">
+<link rel="stylesheet" href="style.css?v=202611232345">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
   try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("protein-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -59,6 +59,14 @@
 </header>
 
 <div id="grid-view" class="view">
+  <section class="bar name-bar" aria-label="This pattern's file">
+    <span class="group-label">Pattern</span>
+    <strong id="pattern-name" class="pattern-name untitled">Untitled</strong>
+    <button id="pattern-save" class="primary" type="button" title="Save this pattern to its file again, with its sound (Cmd+S). The first time, it asks where.">Save</button>
+    <button id="pattern-save-as" type="button" title="Save this pattern as a new file, choosing its name and folder (Cmd+Shift+S)">Save as&hellip;</button>
+    <button id="pattern-open" type="button" title="Open a pattern file from anywhere on this computer into this pattern">Open&hellip;</button>
+    <button id="load-pattern" type="button" title="Show the patterns saved in the library folder">Saved patterns</button>
+  </section>
   <section class="bar slots-bar" aria-label="Patterns">
     <span class="group-label">Pattern</span>
     <div id="slots" class="slots"></div>
@@ -73,8 +81,6 @@
     <button id="undo" type="button" title="Undo (Cmd+Z)" disabled>Undo</button>
     <button id="redo" type="button" title="Redo (Cmd+Shift+Z)" disabled>Redo</button>
     <button id="duplicate" type="button" title="Copy this pattern to the next empty slot">Duplicate</button>
-    <button id="save-pattern" type="button" title="Save this pattern by name in the library folder">Save pattern</button>
-    <button id="load-pattern" type="button" title="Choose a saved pattern to load into this one">Load pattern</button>
     <button id="clear" type="button">Clear</button>
   </section>
 
@@ -358,7 +364,7 @@
     <ul>
       <li><b>Sound</b>, beside the patterns, chooses the sound a pattern plays with. Whenever that pattern starts, on Play, when you switch to it, in a chain or from Song Grid, its sound is sent to the Protein: its settings that are mapped on the Synth tab are sent, so the rest of the sound stays as it is. Sounds from the sound library can be chosen once Teach reading has been done.</li>
       <li><b>Whatever's loaded</b> sends nothing, so the pattern plays with the sound the Protein has at the time.</li>
-      <li>The pattern keeps its own copy of the sound, so it isn't changed by renaming or deleting the sound later. <b>Save pattern</b> saves it with the pattern, and <b>Duplicate</b> copies it.</li>
+      <li>The pattern keeps its own copy of the sound, so it isn't changed by renaming or deleting the sound later. <b>Save</b> saves it with the pattern, and <b>Duplicate</b> copies it.</li>
     </ul>
 
     <h3>Set up</h3>
@@ -396,7 +402,7 @@
 
     <h3>Library tab</h3>
     <ul>
-      <li><b>Save pattern</b> saves the pattern you're on by name, with its notes, bars, knob movements and tempo, as a .json file in the library folder's <b>Patterns</b> folder. It asks for the library folder first if it isn't chosen yet. <b>Load pattern</b> goes to the saved patterns on the Library tab, where <b>Load</b> puts one into the pattern you're on. Undo brings back what was there.</li>
+      <li>The bar at the top of the Grid tab shows the name of the pattern you're on, large. <b>Save</b> (Cmd+S) saves it to its file again, under the same name, with its notes, bars, knob movements, tempo and sound. The first time, and with <b>Save as&hellip;</b> (Cmd+Shift+S), the Mac's Save dialog asks for a name and a folder. It starts in the library folder's <b>Patterns</b> folder, then in wherever you saved last. <b>Open&hellip;</b> opens a pattern file from anywhere into the pattern you're on. <b>Saved patterns</b> goes to the patterns in the library folder on the Library tab, where <b>Load</b> puts one into the pattern you're on. A pattern you load from there or open saves back to its own file. <b>Duplicate</b> makes a copy that doesn't, so its first Save asks where. Undo brings back what was there before a load.</li>
       <li>The library keeps whole sounds, every setting and layer, exactly as the Protein sent them. It's a folder on this computer that you choose with <b>Choose library folder</b>, and each sound is saved there as its own .syx file, named after the sound. That keeps them even if the browser's data is cleared, and your usual backups include them. Where each came from is kept in <b>library-info.json</b> in the same folder. After Chrome restarts, click <b>Allow library folder</b> to use it again.</li>
       <li>This is separate from <b>Save sound</b> on the Synth tab, which only keeps the mapped settings, in this browser.</li>
       <li><b>Add from Protein</b> waits for a sound. On the Protein, press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. The file is named after the sound, and <b>Rename</b> renames the file, not the sound on the Protein. Click the star beside a sound to make it a favourite, and <b>Favourites</b> beside the search shows only those. Favourites are kept in library-info.json in the library folder, so they stay with your sounds. .syx files you put in the folder yourself show up too.</li>
@@ -453,15 +459,16 @@
   </div>
 </dialog>
 
-<script src="music.js?v=202611232300"></script>
-<script src="params.js?v=202611232300"></script>
-<script src="dump.js?v=202611232300"></script>
-<script src="library.js?v=202611232300"></script>
-<script src="folder.js?v=202611232300"></script>
-<script src="sync.js?v=202611232300"></script>
-<script src="backup.js?v=202611232300"></script>
-<script src="recorder.js?v=202611232300"></script>
-<script src="app.js?v=202611232300"></script>
+<script src="music.js?v=202611232345"></script>
+<script src="params.js?v=202611232345"></script>
+<script src="dump.js?v=202611232345"></script>
+<script src="library.js?v=202611232345"></script>
+<script src="named-file.js?v=202611232345"></script>
+<script src="folder.js?v=202611232345"></script>
+<script src="sync.js?v=202611232345"></script>
+<script src="backup.js?v=202611232345"></script>
+<script src="recorder.js?v=202611232345"></script>
+<script src="app.js?v=202611232345"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {

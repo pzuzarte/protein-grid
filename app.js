@@ -333,6 +333,9 @@ function duplicatePattern() {
   stop();
   remember();
   state.slots[target] = JSON.parse(JSON.stringify(slot()));
+  // The copy is a new pattern, so it doesn't save over the original's file.
+  state.slots[target].fileKey = null;
+  if (state.slots[target].name) state.slots[target].name = `${state.slots[target].name} copy`;
   switchTo(target);
   setStatus(`Copied to pattern ${target + 1}.`);
 }
@@ -756,6 +759,7 @@ function renderStepControls() {
 function renderChrome() {
   renderUndo();
   renderSlots();
+  renderPatternName();
   renderPatternSound();
 }
 
@@ -1925,25 +1929,113 @@ async function ensureLibrary() {
   return library.status === "ready";
 }
 
-async function savePattern() {
-  if (!notes().length && !(slot().lanes && Object.keys(slot().lanes).length)) {
-    setStatus(`Pattern ${state.current + 1} is empty, so there's nothing to save. Add notes first.`, true);
-    return;
-  }
-  if (!(await ensureLibrary())) return;
-  const name = SoundFolder.cleanName(window.prompt("Name this pattern", `Pattern ${state.current + 1}`) || "");
-  if (!name) return;
-  const fileName = SoundFolder.uniqueName(name, patterns.items.map((item) => item.name));
-  const data = { app: "protein-grid", version: 1, bars: slot().bars, bpm: currentBpm(), notes: notes(), lanes: slot().lanes || null, sound: slot().sound || null };
+/* ---------- Pattern files ---------- */
+
+// Patterns are saved as files with the Mac's Save dialog, anywhere, starting in the library
+// folder's Patterns folder. Each pattern remembers its file, so Save writes to it again.
+const patternFiles = NamedFile.create({
+  db: "protein-grid-files", id: "protein-grid-patterns", extension: ".json",
+  description: "Protein Grid pattern", mime: "application/json",
+});
+
+function renderPatternName() {
+  const name = slot().name || "";
+  const label = $("pattern-name");
+  if (!label) return;
+  label.textContent = name || "Untitled";
+  label.classList.toggle("untitled", !name);
+  label.title = name
+    ? `Pattern ${state.current + 1} is "${name}". Save writes to its file again.`
+    : `Pattern ${state.current + 1} hasn't been saved as a file yet. Save asks where to save it.`;
+}
+
+// Where the Save and Open dialogs start, the first time: the library's Patterns folder.
+async function patternsStart() {
+  if (library.status !== "ready") return undefined;
   try {
-    await (await patternFolder()).write(fileName, new TextEncoder().encode(JSON.stringify(data, null, 1)));
-  } catch (error) {
-    setStatus(`Couldn't save it to the library folder: ${error.message}`, true);
+    return await library.folder.getDirectoryHandle(PATTERNS, { create: true });
+  } catch {
+    return undefined;
+  }
+}
+
+// The pattern as a file, with its sound if it has one.
+function patternContents(index) {
+  const item = state.slots[index];
+  const data = { app: "protein-grid", version: 1, bars: item.bars, bpm: currentBpm(), notes: item.notes, lanes: item.lanes || null, sound: item.sound || null };
+  return new TextEncoder().encode(JSON.stringify(data, null, 1));
+}
+
+// Save writes to the pattern's file again. Save as, or Save with no file yet, asks where.
+async function savePattern({ asNew = false } = {}) {
+  const index = state.current;
+  const item = state.slots[index];
+  if (!item.notes.length && !(item.lanes && Object.keys(item.lanes).length)) {
+    setStatus(`Pattern ${index + 1} is empty, so there's nothing to save. Add notes first.`, true);
     return;
   }
-  await readPatterns();
-  renderLibrary();
-  setStatus(`Saved pattern ${state.current + 1} as "${fileName}" in ${PATTERNS} in "${library.folder.name}".`);
+  if (!patternFiles.supported()) {
+    setStatus("Saving patterns as files needs Chrome or Edge on a computer.", true);
+    return;
+  }
+  try {
+    let saved = null;
+    if (!asNew && item.fileKey) saved = await patternFiles.save(item.fileKey, () => patternContents(index));
+    if (!saved) {
+      const key = NamedFile.newKey();
+      saved = await patternFiles.saveAs(key, item.name || `Pattern ${index + 1}`, () => patternContents(index), { startIn: await patternsStart() });
+      if (!saved) {
+        setStatus("Not saved.");
+        return;
+      }
+      item.fileKey = key;
+    }
+    item.name = saved.name;
+    saveSoon();
+    renderPatternName();
+    if (library.status === "ready") await readPatterns();
+    renderLibrary();
+    setStatus(`Saved "${saved.name}"${item.sound ? `, with its sound "${item.sound.name}"` : ""}.`);
+  } catch (error) {
+    setStatus(`Couldn't save it: ${error.message}`, true);
+  }
+}
+
+// Opens a pattern file from anywhere, with the Mac's Open dialog, into the pattern you're on.
+async function openPattern() {
+  if (!patternFiles.supported()) {
+    setStatus("Opening pattern files needs Chrome or Edge on a computer.", true);
+    return;
+  }
+  const key = NamedFile.newKey();
+  try {
+    const opened = await patternFiles.open(key, { startIn: await patternsStart() });
+    if (!opened) return;
+    const pattern = readPatternFile(opened.bytes);
+    if (!pattern) {
+      await patternFiles.forget(key);
+      setStatus(`"${opened.name}" isn't a Protein Grid pattern.`, true);
+      return;
+    }
+    loadSavedPattern({ name: opened.name, ...pattern, fileKey: key });
+  } catch (error) {
+    setStatus(`Couldn't open it: ${error.message}`, true);
+  }
+}
+
+// Loads a pattern from the library list, remembering its file so Save writes to it.
+async function loadLibraryPattern(item) {
+  let fileKey = null;
+  try {
+    const folder = await patternsStart();
+    if (folder) {
+      fileKey = NamedFile.newKey();
+      await patternFiles.remember(fileKey, await folder.getFileHandle(`${item.name}.json`));
+    }
+  } catch {
+    fileKey = null;
+  }
+  loadSavedPattern({ ...item, fileKey });
 }
 
 // Shows the saved patterns, on the Library tab.
@@ -1955,7 +2047,7 @@ async function showSavedPatterns() {
   $("pattern-search").focus();
   setStatus(patterns.items.length
     ? `Click Load on a pattern to put it into pattern ${state.current + 1}.`
-    : "No saved patterns yet. Save pattern, on the Grid tab, saves the one you're on.");
+    : "No saved patterns yet. Save, beside the pattern's name on the Grid tab, saves the one you're on.");
 }
 
 // Puts a saved pattern into the current pattern. Undo brings back what was there.
@@ -1963,7 +2055,7 @@ function loadSavedPattern(item) {
   stop();
   closeNoteEditor({ restoreFocus: false });
   remember();
-  state.slots[state.current] = { bars: item.bars, notes: JSON.parse(JSON.stringify(item.notes)) };
+  state.slots[state.current] = { bars: item.bars, notes: JSON.parse(JSON.stringify(item.notes)), name: item.name, fileKey: item.fileKey || null };
   if (item.lanes) state.slots[state.current].lanes = JSON.parse(JSON.stringify(item.lanes));
   if (item.sound) state.slots[state.current].sound = JSON.parse(JSON.stringify(item.sound));
   if (item.bpm) state.bpm = item.bpm;
@@ -1988,7 +2080,7 @@ function renderPatterns() {
     ? "Patterns are saved in the library folder too. Choose it above."
     : patterns.items.length
       ? "No saved patterns match that search."
-      : "No saved patterns yet. Save pattern, next to the patterns on the Grid tab, saves the one you're on.";
+      : "No saved patterns yet. Save, beside the pattern's name on the Grid tab, saves the one you're on, and Save as asks where.";
   $("pattern-list").replaceChildren(...shown.map((item) => {
     const row = document.createElement("li");
     row.className = "library-row";
@@ -1999,7 +2091,7 @@ function renderPatterns() {
     about.textContent = ` ${plural(item.bars, "bar")}, ${plural(item.notes.length, "note")}${item.bpm ? `, ${item.bpm} BPM` : ""}`;
     text.append(about);
     row.append(text,
-      actionButton("Load", `Put it into pattern ${state.current + 1} on the Grid tab`, () => loadSavedPattern(item)),
+      actionButton("Load", `Put it into pattern ${state.current + 1} on the Grid tab`, () => loadLibraryPattern(item)),
       actionButton("Rename", "Rename this pattern and its file", async () => {
         const name = SoundFolder.cleanName(window.prompt("Rename this pattern", item.name) || "");
         if (!name || name === item.name) return;
@@ -3465,7 +3557,9 @@ function bindControls() {
     if (file) importLibrary(file).catch((error) => setStatus(`Couldn't import ${file.name}: ${error.message}`, true));
   });
   $("library-export-all").addEventListener("click", exportAllLibrary);
-  $("save-pattern").addEventListener("click", savePattern);
+  $("pattern-save").addEventListener("click", () => savePattern());
+  $("pattern-save-as").addEventListener("click", () => savePattern({ asNew: true }));
+  $("pattern-open").addEventListener("click", openPattern);
   $("load-pattern").addEventListener("click", showSavedPatterns);
   $("pattern-search").addEventListener("input", (event) => {
     patterns.search = event.target.value;
@@ -3505,6 +3599,12 @@ function bindControls() {
     }
     if (event.key === "Escape" && state.editor) {
       closeNoteEditor();
+      return;
+    }
+    // Cmd+S saves the pattern to its file, and Cmd+Shift+S saves it as a new one.
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      if (!event.repeat) savePattern({ asNew: event.shiftKey });
       return;
     }
     // Space is the transport wherever you've last clicked, unless you're writing text.
