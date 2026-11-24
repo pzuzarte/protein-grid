@@ -206,6 +206,8 @@ function renderSlots() {
     button.type = "button";
     button.className = "slot";
     button.textContent = String(index + 1);
+    const named = state.slots[index].name;
+    if (named) button.title = named;
     button.classList.toggle("has-pattern", count > 0);
     button.classList.toggle("queued", index === state.queued);
     button.setAttribute("aria-current", String(index === state.current));
@@ -1938,15 +1940,48 @@ const patternFiles = NamedFile.create({
   description: "Protein Grid pattern", mime: "application/json",
 });
 
+// Names the pattern you're on, by clicking its name. A pattern with a file asks where to
+// save next time, under the new name, and the old file stays as it was.
+function renamePattern() {
+  const index = state.current;
+  const item = state.slots[index];
+  const answer = window.prompt("Name this pattern", item.name || `Pattern ${index + 1}`);
+  if (answer === null) return;
+  const name = answer.trim().slice(0, 60);
+  if (!name) return;
+  const hadFile = Boolean(item.fileKey);
+  item.name = name;
+  item.fileKey = null;
+  saveSoon();
+  renderPatternName();
+  setStatus(`Named pattern ${index + 1} "${name}".${hadFile ? " Save asks where to save it under the new name." : ""}`);
+}
+
+// The name of the pattern on the grid, shown just above it. Clicking it renames it.
+function renderGridTitle(word, number, name) {
+  const title = $("grid-title");
+  if (!title) return;
+  const label = document.createElement("span");
+  label.className = "number";
+  label.textContent = number === "" ? `${word}: ` : `${word} ${number}: `;
+  const shown = document.createElement("span");
+  shown.className = "name";
+  shown.textContent = name || "Untitled";
+  title.replaceChildren(label, shown);
+  title.classList.toggle("untitled", !name);
+  title.title = name ? `Click to rename ${word.toLowerCase()} ${number}` : `Click to name ${word.toLowerCase()} ${number}`;
+}
+
 function renderPatternName() {
+  renderGridTitle("Pattern", state.current + 1, slot().name || "");
   const name = slot().name || "";
   const label = $("pattern-name");
   if (!label) return;
   label.textContent = name || "Untitled";
   label.classList.toggle("untitled", !name);
   label.title = name
-    ? `Pattern ${state.current + 1} is "${name}". Save writes to its file again.`
-    : `Pattern ${state.current + 1} hasn't been saved as a file yet. Save asks where to save it.`;
+    ? `Pattern ${state.current + 1} is "${name}". Click to rename it. Save writes to its file again.`
+    : `Click to name pattern ${state.current + 1}. Save asks where to save it as a file.`;
 }
 
 // Where the Save and Open dialogs start, the first time: the library's Patterns folder.
@@ -3059,9 +3094,9 @@ const notesText = (count) => `${count} note${count === 1 ? "" : "s"}`;
 const filledSlots = () => state.slots.map((item, index) => ({ item, index }))
   .filter(({ item }) => item.notes.length || (item.lanes && Object.keys(item.lanes).length));
 const slotAsset = ({ item, index }) => ({
-  id: `slot:${index}`, ref: index, label: `Pattern ${index + 1}`, length: barsText(item.bars), notes: item.notes.length, data: JSON.parse(JSON.stringify(item)),
+  id: `slot:${index}`, ref: index, label: patternLabel(index), length: barsText(item.bars), notes: item.notes.length, data: JSON.parse(JSON.stringify(item)),
 });
-const slotChoices = () => filledSlots().map(({ item, index }) => ({ id: `slot:${index}`, label: `Pattern ${index + 1}`, meta: `${barsText(item.bars)}, ${notesText(item.notes.length)}` }));
+const slotChoices = () => filledSlots().map(({ item, index }) => ({ id: `slot:${index}`, label: patternLabel(index), meta: `${barsText(item.bars)}, ${notesText(item.notes.length)}` }));
 
 function pickedSlots(ids) {
   return ids.map((id) => /^slot:(\d+)$/.exec(id)).filter((match) => match && state.slots[Number(match[1])])
@@ -3129,13 +3164,16 @@ function readFilesForSong({ files = [] } = {}) {
   return { patterns, skipped };
 }
 
+// What a pattern is called: its name, or its number if it hasn't one. Song Grid shows it.
+const patternLabel = (index) => state.slots[index].name || `Pattern ${index + 1}`;
+
 // What Song Grid keeps of this grid for a song: its patterns, and its sound where it has
 // one. See sync.js.
 function collectAssets() {
   const patterns = state.slots.map((item, index) => ({ item, index }))
     .filter(({ item }) => item.notes.length || (item.lanes && Object.keys(item.lanes).length))
     .map(({ item, index }) => ({
-      id: `slot:${index}`, ref: index, label: `Pattern ${index + 1}`,
+      id: `slot:${index}`, ref: index, label: patternLabel(index),
       length: `${item.bars} bar${item.bars === 1 ? "" : "s"}`, notes: item.notes.length, data: JSON.parse(JSON.stringify(item)),
     }));
   const sound = Object.keys(state.values).length
@@ -3580,6 +3618,8 @@ function bindControls() {
     if (file) importLibrary(file).catch((error) => setStatus(`Couldn't import ${file.name}: ${error.message}`, true));
   });
   $("library-export-all").addEventListener("click", exportAllLibrary);
+  $("pattern-name").addEventListener("click", renamePattern);
+  $("grid-title").addEventListener("click", renamePattern);
   $("pattern-save").addEventListener("click", () => savePattern());
   $("pattern-save-as").addEventListener("click", () => savePattern({ asNew: true }));
   $("pattern-open").addEventListener("click", openPattern);
