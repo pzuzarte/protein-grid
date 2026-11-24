@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Protein Grid</title>
-<link rel="stylesheet" href="style.css?v=202611222346">
+<link rel="stylesheet" href="style.css?v=202611232212">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
-  try { if (localStorage.getItem("protein-grid-theme") === "light") document.documentElement.dataset.theme = "light"; } catch {}
+  try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("protein-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
 </script>
 <!-- Counts visits anonymously. A fixed version with a checksum, and the tool works if it's blocked. -->
 <script data-goatcounter="https://pzuzarte.goatcounter.com/count"
@@ -52,10 +52,9 @@
       <a href="https://pzuzarte.github.io/td3-grid/" target="td3-grid">TD-3 Grid</a>
       <a href="https://pzuzarte.github.io/song-grid/" target="song-grid">Song Grid</a>
       <a href="https://pzuzarte.github.io/midi-hub/" target="midi-hub">MIDI Hub</a>
-      <hr>
-      <button id="theme-toggle" type="button" title="Switch between dark and light mode">Light mode</button>
     </nav>
   </details>
+  <button id="theme-toggle" class="theme-toggle" type="button" title="Switch between dark and light mode, for all the grids" aria-label="Dark or light mode">☀</button>
   <button id="help-open" type="button" title="Help (press ?)">Help</button>
 </header>
 
@@ -63,6 +62,9 @@
   <section class="bar slots-bar" aria-label="Patterns">
     <span class="group-label">Pattern</span>
     <div id="slots" class="slots"></div>
+    <label class="pattern-sound" title="The sound this pattern plays with. Its settings are sent to the Protein whenever the pattern starts. Whatever's loaded leaves the sound as it is.">Sound
+      <select id="pattern-sound"></select>
+    </label>
     <div class="spacer"></div>
     <label>Idea
       <select id="generator"></select>
@@ -345,6 +347,13 @@
     <p>A pattern grid and sound editor for the Waldorf Protein. It runs in your browser and sends MIDI to the Protein. Your patterns, sounds and mappings stay on this computer. It needs a current Chrome or Edge on a computer. It's unofficial and not affiliated with Waldorf.</p>
     <p>Visits to this page are counted anonymously with <a href="https://www.goatcounter.com/" target="_blank" rel="noopener">GoatCounter</a>, which uses no cookies. It never receives your patterns or sounds.</p>
 
+    <h3>A sound for each pattern</h3>
+    <ul>
+      <li><b>Sound</b>, beside the patterns, chooses the sound a pattern plays with. Whenever that pattern starts, on Play, when you switch to it, in a chain or from Song Grid, its sound is sent to the Protein: its settings that are mapped on the Synth tab are sent, so the rest of the sound stays as it is. Sounds from the sound library can be chosen once Teach reading has been done.</li>
+      <li><b>Whatever's loaded</b> sends nothing, so the pattern plays with the sound the Protein has at the time.</li>
+      <li>The pattern keeps its own copy of the sound, so it isn't changed by renaming or deleting the sound later. <b>Save pattern</b> saves it with the pattern, and <b>Duplicate</b> copies it.</li>
+    </ul>
+
     <h3>Set up</h3>
     <ol>
       <li>Connect the Protein to your computer with its USB-C cable, and turn it on.</li>
@@ -437,15 +446,15 @@
   </div>
 </dialog>
 
-<script src="music.js?v=202611222346"></script>
-<script src="params.js?v=202611222346"></script>
-<script src="dump.js?v=202611222346"></script>
-<script src="library.js?v=202611222346"></script>
-<script src="folder.js?v=202611222346"></script>
-<script src="sync.js?v=202611222346"></script>
-<script src="backup.js?v=202611222346"></script>
-<script src="recorder.js?v=202611222346"></script>
-<script src="app.js?v=202611222346"></script>
+<script src="music.js?v=202611232212"></script>
+<script src="params.js?v=202611232212"></script>
+<script src="dump.js?v=202611232212"></script>
+<script src="library.js?v=202611232212"></script>
+<script src="folder.js?v=202611232212"></script>
+<script src="sync.js?v=202611232212"></script>
+<script src="backup.js?v=202611232212"></script>
+<script src="recorder.js?v=202611232212"></script>
+<script src="app.js?v=202611232212"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {

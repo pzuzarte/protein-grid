@@ -229,13 +229,98 @@ function selectSlot(index) {
   }
 }
 
-// The sound stays as it is, so only loading a patch or a saved sound changes it.
+// A pattern with a sound sends it as it starts. Without one, the sound stays as it is.
 function switchTo(index) {
   restoreAfterMotions();
   state.current = index;
   state.queued = null;
   state.page = 0;
   renderAll();
+  saveSoon();
+  sendPatternSound();
+}
+
+/* ---------- A sound for each pattern ---------- */
+
+// The pattern keeps its own copy of the settings, so changing the saved sound or
+// library doesn't change the pattern. Only mapped settings can be sent.
+function sendPatternSound() {
+  const sound = slot().sound;
+  if (!sound || !state.output) return;
+  applySound(onLayer(sound.values));
+}
+
+const sameValues = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
+
+// Library sounds can be chosen once Teach reading has found where settings are in a sound.
+function libraryValues(item) {
+  if (!state.readMap) return null;
+  try {
+    const [messages] = ProteinLibrary.split(item.bytes);
+    const values = ProteinDump.read(ProteinDump.parse(messages).values, state.readMap.map, state.readMap.fx);
+    return Object.keys(values).length ? values : null;
+  } catch {
+    return null;
+  }
+}
+
+function renderPatternSound() {
+  const select = $("pattern-sound");
+  if (!select) return;
+  const sound = slot().sound;
+  const options = [new Option("Whatever's loaded", "")];
+  let chosen = sound ? "kept" : "";
+  const saved = document.createElement("optgroup");
+  saved.label = "Saved sounds";
+  for (const [index, item] of state.sounds.entries()) {
+    saved.append(new Option(item.name, `saved:${index}`));
+    if (sound && chosen === "kept" && sound.from === "saved" && item.name === sound.name && sameValues(item.values, sound.values)) chosen = `saved:${index}`;
+  }
+  const items = library.status === "ready" && state.readMap ? library.items : [];
+  const fromLibrary = document.createElement("optgroup");
+  fromLibrary.label = "Sound library";
+  for (const [index, item] of items.entries()) {
+    fromLibrary.append(new Option(item.name, `lib:${index}`));
+    if (sound && chosen === "kept" && sound.from === "library" && item.name === sound.name) chosen = `lib:${index}`;
+  }
+  if (chosen === "kept") options.push(new Option(`${sound.name} (kept with the pattern)`, "kept"));
+  select.replaceChildren(...options);
+  if (state.sounds.length) select.append(saved);
+  if (items.length) select.append(fromLibrary);
+  select.value = chosen;
+  select.title = sound ? `Pattern ${state.current + 1} plays with "${sound.name}"` : `Pattern ${state.current + 1} plays with whatever sound is loaded`;
+}
+
+function choosePatternSound(value) {
+  if (value === "kept") return;
+  if (value === "") {
+    slot().sound = null;
+    setStatus(`Pattern ${state.current + 1} now plays with whatever sound is loaded.`);
+  } else {
+    const [kind, index] = value.split(":");
+    let sound = null;
+    if (kind === "saved" && state.sounds[Number(index)]) {
+      const item = state.sounds[Number(index)];
+      sound = { from: "saved", name: item.name, values: { ...item.values } };
+    } else if (kind === "lib" && library.items[Number(index)]) {
+      const item = library.items[Number(index)];
+      const values = libraryValues(item);
+      if (!values) {
+        setStatus(`No settings could be read from "${item.name}". Map some settings on the Synth tab and click Teach reading, then try again.`, true);
+        renderPatternSound();
+        return;
+      }
+      sound = { from: "library", name: item.name, values };
+    }
+    if (!sound) return;
+    slot().sound = sound;
+    const mapped = Object.keys(sound.values).filter((id) => state.mappings[layerKey(id)] !== undefined).length;
+    const total = Object.keys(sound.values).length;
+    const partly = mapped < total ? ` ${total - mapped} of its ${total} settings aren't mapped on layer ${state.layer}, so they aren't sent.` : "";
+    setStatus(`Pattern ${state.current + 1} now plays with "${sound.name}".${partly}${state.output ? "" : " No MIDI output is connected yet."}`, !state.output);
+    sendPatternSound();
+  }
+  renderPatternSound();
   saveSoon();
 }
 
@@ -646,6 +731,7 @@ function renderStepControls() {
 function renderChrome() {
   renderUndo();
   renderSlots();
+  renderPatternSound();
 }
 
 // Imported or restored patterns can be any number of steps, such as 6 or 12.
@@ -1373,6 +1459,7 @@ function forgetMapping() {
 /* ---------- Saved sounds ---------- */
 
 function renderSounds() {
+  renderPatternSound();
   $("sound").replaceChildren(new Option(state.sounds.length ? "Saved sounds" : "No saved sounds", ""),
     ...state.sounds.map((sound, index) => new Option(sound.name, String(index))));
   $("sound-load").disabled = !state.sounds.length;
@@ -1741,6 +1828,7 @@ function readPatternFile(bytes) {
       notes,
       lanes: data.lanes && typeof data.lanes === "object" ? data.lanes : null,
       bpm: Number.isFinite(data.bpm) ? Math.max(20, Math.min(300, data.bpm)) : null,
+      sound: data.sound && typeof data.sound.name === "string" && data.sound.values && typeof data.sound.values === "object" ? data.sound : null,
     };
   } catch {
     return null;
@@ -1779,7 +1867,7 @@ async function savePattern() {
   const name = SoundFolder.cleanName(window.prompt("Name this pattern", `Pattern ${state.current + 1}`) || "");
   if (!name) return;
   const fileName = SoundFolder.uniqueName(name, patterns.items.map((item) => item.name));
-  const data = { app: "protein-grid", version: 1, bars: slot().bars, bpm: currentBpm(), notes: notes(), lanes: slot().lanes || null };
+  const data = { app: "protein-grid", version: 1, bars: slot().bars, bpm: currentBpm(), notes: notes(), lanes: slot().lanes || null, sound: slot().sound || null };
   try {
     await (await patternFolder()).write(fileName, new TextEncoder().encode(JSON.stringify(data, null, 1)));
   } catch (error) {
@@ -1810,6 +1898,7 @@ function loadSavedPattern(item) {
   remember();
   state.slots[state.current] = { bars: item.bars, notes: JSON.parse(JSON.stringify(item.notes)) };
   if (item.lanes) state.slots[state.current].lanes = JSON.parse(JSON.stringify(item.lanes));
+  if (item.sound) state.slots[state.current].sound = JSON.parse(JSON.stringify(item.sound));
   if (item.bpm) state.bpm = item.bpm;
   if (item.notes.length) {
     const lowest = Math.min(...item.notes.map((n) => n.note));
@@ -1818,7 +1907,8 @@ function loadSavedPattern(item) {
   state.page = 0;
   renderAll();
   saveSoon();
-  setStatus(`Loaded "${item.name}" into pattern ${state.current + 1}. Undo brings back what was there.`);
+  setStatus(`Loaded "${item.name}" into pattern ${state.current + 1}${item.sound ? `, with its sound "${item.sound.name}"` : ""}. Undo brings back what was there.`);
+  sendPatternSound();
 }
 
 function renderPatterns() {
@@ -2172,6 +2262,7 @@ async function toggleFavourite(item) {
 
 function renderLibrary() {
   renderPatterns();
+  renderPatternSound();
   const ready = library.status === "ready";
   const folderState = {
     unsupported: ["Choose library folder", "Saving sounds to a folder needs Chrome or Edge on a computer."],
@@ -2805,10 +2896,12 @@ function play({ startAt = null, fromLink = false } = {}) {
   state.playing = true;
   state.nextPulse = 0;
   const chain = song ? [] : chainList();
+  const switching = chain.length > 0 && state.current !== chain[0];
   if (chain.length) {
     state.chainPos = 0;
-    if (state.current !== chain[0]) switchTo(chain[0]);
+    if (switching) switchTo(chain[0]);
   }
+  if (!switching) sendPatternSound();
   const shared = fromLink ? null : link.announcePlay(currentBpm());
   state.nextTime = startAt ?? shared ?? performance.now() + 60;
   if (sendingClock()) state.output.send([0xFA], state.nextTime);
@@ -2969,12 +3062,13 @@ async function importMidi(file) {
   setStatus(`Imported ${count} from ${file.name} into pattern ${state.current + 1}. Undo brings the old one back.${cut}${guess}`);
 }
 
-const THEME_KEY = "protein-grid-theme";
+// Shared by all the grids, so switching one switches them all.
+const THEME_KEY = "midi-grids-theme";
 
 function setTheme(theme) {
   if (theme === "light") document.documentElement.dataset.theme = "light";
   else delete document.documentElement.dataset.theme;
-  $("theme-toggle").textContent = theme === "light" ? "Dark mode" : "Light mode";
+  $("theme-toggle").textContent = theme === "light" ? "☾" : "☀";
   try {
     localStorage.setItem(THEME_KEY, theme);
   } catch {
@@ -2982,6 +3076,11 @@ function setTheme(theme) {
   }
   renderLane();
 }
+
+// Follows a switch made on another grid open in this browser.
+window.addEventListener("storage", (event) => {
+  if (event.key === THEME_KEY && event.newValue) setTheme(event.newValue === "light" ? "light" : "dark");
+});
 
 /* ---------- Sound variations ---------- */
 
@@ -3134,7 +3233,7 @@ function bindControls() {
   });
   $("vary-small").addEventListener("click", () => varySound(0.06));
   $("theme-toggle").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"));
-  $("theme-toggle").textContent = document.documentElement.dataset.theme === "light" ? "Dark mode" : "Light mode";
+  $("theme-toggle").textContent = document.documentElement.dataset.theme === "light" ? "☾" : "☀";
   $("vary-big").addEventListener("click", () => varySound(0.25));
   $("vary-compare").addEventListener("click", compareVary);
   $("octave-down").addEventListener("click", () => shiftOctave(-1));
@@ -3143,6 +3242,7 @@ function bindControls() {
   $("undo").addEventListener("click", undo);
   $("redo").addEventListener("click", redo);
   $("duplicate").addEventListener("click", duplicatePattern);
+  $("pattern-sound").addEventListener("change", (event) => choosePatternSound(event.target.value));
   $("clear").addEventListener("click", () => {
     if (!notes().length) return;
     remember();
