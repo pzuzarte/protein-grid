@@ -2465,7 +2465,29 @@ function followSong() {
   return true;
 }
 
+// Notes played while their key is still held while recording. Each one sounds until
+// its key is let go, so playing over it doesn't cut it short, and it's heard even with
+// the synth's Local off.
+const heldSounding = new Map();
+
+function startHeldNote(item, note, atTime) {
+  if (!state.output || heldSounding.has(item)) return;
+  recorder.sent(note, atTime);
+  const value = Math.max(1, Math.min(127, Math.round(item.velocity * 127)));
+  state.output.send([0x90 | state.channel, note, value], atTime);
+  heldSounding.set(item, { note, at: atTime });
+}
+
+function releaseHeldNotes({ all = false } = {}) {
+  for (const [item, held] of heldSounding) {
+    if (!all && recorder?.holding(item)) continue;
+    if (state.output) state.output.send([0x80 | state.channel, held.note, 0], Math.max(performance.now(), held.at + 1));
+    heldSounding.delete(item);
+  }
+}
+
 function schedule() {
+  releaseHeldNotes();
   const horizon = performance.now() + SCHEDULE_AHEAD_MS;
   let ms = msPerPulse();
   while (state.nextTime < horizon) {
@@ -2480,7 +2502,12 @@ function schedule() {
     if (from % PPQ === 0 && !state.sendOnce) click.at(state.nextTime, from % (4 * PPQ) === 0);
     if (!song?.muted) scheduleMotions(from, to, ms);
     for (const note of playing.notes) {
-      if (note.time >= from && note.time < to && !recorder?.holding(note) && Math.random() * 100 < (note.probability ?? 100)) {
+      if (note.time >= from && note.time < to && Math.random() * 100 < (note.probability ?? 100)) {
+        // A note whose key is still held starts, and ends when the key is let go.
+        if (recorder?.holding(note)) {
+          startHeldNote(note, songNote(note.note), state.nextTime + (note.time - from) * ms);
+          continue;
+        }
         for (const part of Music.noteParts(note)) {
           sendNote(songNote(note.note), note.velocity, state.nextTime + (part.time - from) * ms, part.length * ms);
         }
@@ -2982,6 +3009,7 @@ function stop({ fromLink = false } = {}) {
   if (!fromLink) link.announceStop();
   if (sendingClock() && state.output) state.output.send([0xFC]);
   state.playing = false;
+  releaseHeldNotes({ all: true });
   // Notes already scheduled can still start, so this repeats just after them.
   allNotesOff(performance.now());
   allNotesOff(performance.now() + SCHEDULE_AHEAD_MS + 20);
