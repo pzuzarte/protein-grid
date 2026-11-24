@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Protein Grid</title>
-<link rel="stylesheet" href="style.css?v=202611232212">
+<link rel="stylesheet" href="style.css?v=202611232219">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
   try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("protein-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -347,6 +347,12 @@
     <p>A pattern grid and sound editor for the Waldorf Protein. It runs in your browser and sends MIDI to the Protein. Your patterns, sounds and mappings stay on this computer. It needs a current Chrome or Edge on a computer. It's unofficial and not affiliated with Waldorf.</p>
     <p>Visits to this page are counted anonymously with <a href="https://www.goatcounter.com/" target="_blank" rel="noopener">GoatCounter</a>, which uses no cookies. It never receives your patterns or sounds.</p>
 
+    <h3>Recording knob turns</h3>
+    <ul>
+      <li>With <b>Rec</b> on and the pattern playing, turning any setting mapped on the Synth tab on the Protein records its movement into this pattern's <b>Knobs</b> lane, where in the pattern you turned it. Each time round the loop, the new movements replace what was there at those points. They then play back like drawn ones.</li>
+      <li>While you're turning a knob, its lane isn't played back, so the two don't fight. Undo takes back the whole take, notes and knob movements together. With the Knobs lane open, it shows the knob you're turning.</li>
+    </ul>
+
     <h3>A sound for each pattern</h3>
     <ul>
       <li><b>Sound</b>, beside the patterns, chooses the sound a pattern plays with. Whenever that pattern starts, on Play, when you switch to it, in a chain or from Song Grid, its sound is sent to the Protein: its settings that are mapped on the Synth tab are sent, so the rest of the sound stays as it is. Sounds from the sound library can be chosen once Teach reading has been done.</li>
@@ -446,15 +452,15 @@
   </div>
 </dialog>
 
-<script src="music.js?v=202611232212"></script>
-<script src="params.js?v=202611232212"></script>
-<script src="dump.js?v=202611232212"></script>
-<script src="library.js?v=202611232212"></script>
-<script src="folder.js?v=202611232212"></script>
-<script src="sync.js?v=202611232212"></script>
-<script src="backup.js?v=202611232212"></script>
-<script src="recorder.js?v=202611232212"></script>
-<script src="app.js?v=202611232212"></script>
+<script src="music.js?v=202611232219"></script>
+<script src="params.js?v=202611232219"></script>
+<script src="dump.js?v=202611232219"></script>
+<script src="library.js?v=202611232219"></script>
+<script src="folder.js?v=202611232219"></script>
+<script src="sync.js?v=202611232219"></script>
+<script src="backup.js?v=202611232219"></script>
+<script src="recorder.js?v=202611232219"></script>
+<script src="app.js?v=202611232219"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {

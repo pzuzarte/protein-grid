@@ -1343,6 +1343,7 @@ function renderMapCount() {
 function sendController(cc, value, atTime) {
   if (!state.output) return false;
   const message = [0xB0 | state.channel, cc, Math.max(0, Math.min(127, Math.round(value)))];
+  sentControllers.set(cc, { value: message[2], at: atTime ?? performance.now() });
   if (atTime === undefined) state.output.send(message);
   else state.output.send(message, atTime);
   return true;
@@ -1577,8 +1578,11 @@ function handleMidiInput(event, port) {
   if ((status & 0x0F) !== state.channel || (status & 0xF0) !== 0xB0) return;
   const key = Object.keys(state.mappings).find((mapped) => state.mappings[mapped] === first);
   if (key === undefined) return;
+  const at = event.timeStamp || performance.now();
+  if (isEcho(first, second, at)) return;
   state.values[key] = second;
   updateKeyControl(key);
+  recordKnob(key, second, at);
 }
 
 /* ---------- Reading a sound dump ---------- */
@@ -2358,6 +2362,7 @@ function setUpRecorder() {
     begin: () => {
       closeNoteEditor({ restoreFocus: false });
       remember();
+      state.knobTake = new Map();
       renderChrome();
     },
     added: (item) => {
@@ -2516,6 +2521,7 @@ function scheduleMotions(from, to, ms) {
   if (!lanes) return;
   const length = lengthPulses();
   for (const [id, points] of Object.entries(lanes)) {
+    if (knobHeld(id)) continue;
     if (from === 0 && state.values[id] !== undefined) sendParam(id, state.values[id], state.nextTime);
     for (const point of points) {
       if (point.time >= from && point.time < to && point.time < length) {
@@ -2532,6 +2538,60 @@ function restoreAfterMotions() {
     if (state.values[id] !== undefined) sendParam(id, state.values[id], performance.now() + SCHEDULE_AHEAD_MS + 25);
   }
 }
+
+/* ---------- Recording knob turns ---------- */
+
+// Controllers this page sent lately, so the synth echoing one back isn't recorded.
+const sentControllers = new Map();
+const ECHO_MS = 60;
+const HOLD_MS = 400; // A knob turned this recently isn't played from its lane.
+
+function isEcho(cc, value, at) {
+  const sent = sentControllers.get(cc);
+  return Boolean(sent) && sent.value === value && Math.abs(at - sent.at) < ECHO_MS;
+}
+
+// While recording and playing, a knob turned on the synth writes its movement into this
+// pattern's lane for it, where in the pattern it was turned. Undo takes back the take.
+function recordKnob(key, value, at) {
+  // Playback starts just after Play is pressed, so a turn before then isn't in the pattern yet.
+  if (!recorder?.on || !state.playing || at < (state.playStartAt ?? 0)) return false;
+  const length = lengthPulses();
+  const time = Math.max(0, Math.min(length - MOTION_TICKS, Math.floor(pulseAt(at) / MOTION_TICKS) * MOTION_TICKS));
+  state.knobTake ??= new Map();
+  const last = state.knobTake.get(key);
+  const lanes = editableLanes();
+  lanes[key] ??= [];
+  const points = lanes[key];
+  // Knobs send fewer messages when turned slowly, so short gaps are filled in.
+  const gap = last ? time - last.time : 0;
+  if (last && gap > 0 && gap <= 16 * MOTION_TICKS) {
+    const count = gap / MOTION_TICKS;
+    for (let index = 1; index <= count; index += 1) {
+      setLanePoint(points, last.time + index * MOTION_TICKS, Math.round(last.value + (value - last.value) * (index / count)), false);
+    }
+  } else {
+    setLanePoint(points, time, value, false);
+  }
+  points.sort((a, b) => a.time - b.time);
+  state.knobTake.set(key, { time, value, at });
+  if (!last) {
+    if (state.showLane) state.laneParam = key;
+    setStatus(`Recording ${knobName(key)} into the Knobs lane. Undo takes back the whole take.`);
+    renderChrome();
+  }
+  if (state.showLane) renderLane();
+  saveSoon();
+  return true;
+}
+
+// A knob being turned plays as it's turned, not from its lane.
+function knobHeld(key) {
+  const last = state.knobTake?.get(key);
+  return Boolean(last) && recorder?.on && performance.now() - last.at < HOLD_MS;
+}
+
+const knobName = (key) => keyName(key);
 
 /* ---------- Drawing knob movements ---------- */
 
@@ -2904,6 +2964,7 @@ function play({ startAt = null, fromLink = false } = {}) {
   if (!switching) sendPatternSound();
   const shared = fromLink ? null : link.announcePlay(currentBpm());
   state.nextTime = startAt ?? shared ?? performance.now() + 60;
+  state.playStartAt = state.nextTime;
   if (sendingClock()) state.output.send([0xFA], state.nextTime);
   $("play").textContent = "Stop";
   $("playhead").hidden = false;
