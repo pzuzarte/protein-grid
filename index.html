@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Protein Grid</title>
-<link rel="stylesheet" href="style.css?v=202611232345">
+<link rel="stylesheet" href="style.css?v=202611232359">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
   try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("protein-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -362,7 +362,8 @@
 
     <h3>A sound for each pattern</h3>
     <ul>
-      <li><b>Sound</b>, beside the patterns, chooses the sound a pattern plays with. Whenever that pattern starts, on Play, when you switch to it, in a chain or from Song Grid, its sound is sent to the Protein: its settings that are mapped on the Synth tab are sent, so the rest of the sound stays as it is. Sounds from the sound library can be chosen once Teach reading has been done.</li>
+      <li><b>Sound</b>, beside the patterns, chooses the sound a pattern plays with. Whenever you load that pattern or switch to it, by clicking its number, in a chain or from Song Grid, its sound is sent to the Protein: its settings that are mapped on the Synth tab are sent, so the rest of the sound stays as it is. Sounds from the sound library can be chosen once Teach reading has been done.</li>
+      <li>Play doesn't send it again, so a patch you choose on the synth while it plays stays until you switch patterns. To keep a different sound with the pattern, choose it in <b>Sound</b> and click <b>Save</b>.</li>
       <li><b>Whatever's loaded</b> sends nothing, so the pattern plays with the sound the Protein has at the time.</li>
       <li>The pattern keeps its own copy of the sound, so it isn't changed by renaming or deleting the sound later. <b>Save</b> saves it with the pattern, and <b>Duplicate</b> copies it.</li>
     </ul>
@@ -459,16 +460,16 @@
   </div>
 </dialog>
 
-<script src="music.js?v=202611232345"></script>
-<script src="params.js?v=202611232345"></script>
-<script src="dump.js?v=202611232345"></script>
-<script src="library.js?v=202611232345"></script>
-<script src="named-file.js?v=202611232345"></script>
-<script src="folder.js?v=202611232345"></script>
-<script src="sync.js?v=202611232345"></script>
-<script src="backup.js?v=202611232345"></script>
-<script src="recorder.js?v=202611232345"></script>
-<script src="app.js?v=202611232345"></script>
+<script src="music.js?v=202611232359"></script>
+<script src="params.js?v=202611232359"></script>
+<script src="dump.js?v=202611232359"></script>
+<script src="library.js?v=202611232359"></script>
+<script src="named-file.js?v=202611232359"></script>
+<script src="folder.js?v=202611232359"></script>
+<script src="sync.js?v=202611232359"></script>
+<script src="backup.js?v=202611232359"></script>
+<script src="recorder.js?v=202611232359"></script>
+<script src="app.js?v=202611232359"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {

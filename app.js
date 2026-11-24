@@ -3178,7 +3178,8 @@ function play({ startAt = null, fromLink = false } = {}) {
     state.chainPos = 0;
     if (switching) switchTo(chain[0]);
   }
-  if (!switching) sendPatternSound();
+  // A pattern's sound is sent when it's loaded or switched to, not on Play, so a patch
+  // chosen on the synth while it plays stays.
   const shared = fromLink ? null : link.announcePlay(currentBpm());
   state.nextTime = startAt ?? shared ?? performance.now() + 60;
   state.playStartAt = state.nextTime;
