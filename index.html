@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Protein Grid</title>
-<link rel="stylesheet" href="style.css?v=202611232234">
+<link rel="stylesheet" href="style.css?v=202611232240">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
   try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("protein-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -200,7 +200,7 @@
       </section>
     </div>
   </div>
-  <p class="hint">Click: add or remove a step. Drag from an empty step: draw a note. Drag a note: change its length. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Click a note name to hear it. Click step numbers: choose steps. Space: play and stop. T: triplets.</p>
+  <p class="hint">Click: add or remove a step. Drag from an empty step: draw a note. Drag the left of a note: move its start. Drag the right of a note: change its length. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Click a note name to hear it. Click step numbers: choose steps. Space: play and stop. T: triplets.</p>
 </div>
 
 <div id="synth-view" class="view synth-view" hidden>
@@ -419,7 +419,7 @@
       <tbody>
         <tr><th scope="row">Click a step</th><td>Add or remove it. New steps use the <b>Length</b> setting, or one step when it's Off.</td></tr>
         <tr><th scope="row">Drag from an empty step</th><td>Draw one note as long as you drag. Hold <kbd>Alt</kbd> for single ticks.</td></tr>
-        <tr><th scope="row">Drag a note</th><td>Change where it ends, from its first step or its end marker. It moves in eighths of a step, or hold <kbd>Alt</kbd> for single ticks.</td></tr>
+        <tr><th scope="row">Drag a note</th><td>Drag the left of its first step, or the marker at its start, to move where it starts, keeping its end where it is. Drag the rest of its first step, or the marker at its end, to change where it ends. Both move in eighths of a step, or hold <kbd>Alt</kbd> for single ticks.</td></tr>
         <tr><th scope="row"><kbd>Cmd</kbd>-drag across steps</th><td>Fill separate steps, or remove them when starting from a filled step.</td></tr>
         <tr><th scope="row">Right-click a step</th><td>Edit velocity, length, timing, probability and sub-steps.</td></tr>
         <tr><th scope="row">Shift-click a step</th><td>Cycle velocity: full, 70%, 40%.</td></tr>
@@ -452,15 +452,15 @@
   </div>
 </dialog>
 
-<script src="music.js?v=202611232234"></script>
-<script src="params.js?v=202611232234"></script>
-<script src="dump.js?v=202611232234"></script>
-<script src="library.js?v=202611232234"></script>
-<script src="folder.js?v=202611232234"></script>
-<script src="sync.js?v=202611232234"></script>
-<script src="backup.js?v=202611232234"></script>
-<script src="recorder.js?v=202611232234"></script>
-<script src="app.js?v=202611232234"></script>
+<script src="music.js?v=202611232240"></script>
+<script src="params.js?v=202611232240"></script>
+<script src="dump.js?v=202611232240"></script>
+<script src="library.js?v=202611232240"></script>
+<script src="folder.js?v=202611232240"></script>
+<script src="sync.js?v=202611232240"></script>
+<script src="backup.js?v=202611232240"></script>
+<script src="recorder.js?v=202611232240"></script>
+<script src="app.js?v=202611232240"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {
