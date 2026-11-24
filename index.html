@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Protein Grid</title>
-<link rel="stylesheet" href="style.css?v=202611232240">
+<link rel="stylesheet" href="style.css?v=202611232252">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
   try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("protein-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -163,6 +163,7 @@
       <button id="record" class="toggle" type="button" aria-pressed="false" title="Record notes into this pattern from the chosen input. Press Play to record in time as the pattern loops, or just press keys to add them step by step.">Rec</button>
       <select id="record-input" aria-label="Record from" title="The keyboard or instrument to record from"></select>
       <select id="record-channel" aria-label="Record channel" title="The MIDI channel to record, or any"></select>
+    <select id="record-snap" aria-label="Where recorded notes land" title="Exact keeps each recorded note where you played it. Snap to steps moves it to the nearest step. Either way, it ends where you let go."></select>
     </div>
     <button id="lane-toggle" class="toggle" type="button" aria-pressed="false" title="Draw knob movements under the grid, for settings mapped on the Synth tab">Knobs</button>
     <label title="Pattern numbers to play in order, such as 1 1 2 3">Chain
@@ -200,7 +201,7 @@
       </section>
     </div>
   </div>
-  <p class="hint">Click: add or remove a step. Drag from an empty step: draw a note. Drag the left of a note: move its start. Drag the right of a note: change its length. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Click a note name to hear it. Click step numbers: choose steps. Space: play and stop. T: triplets.</p>
+  <p class="hint">Click: add or remove a step. Drag from an empty step: draw a note. Drag the left of a note: move its start. Drag the right of a note: change its length. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Hold a note name to hear it, for as long as you hold it. Click step numbers: choose steps. Space: play and stop. T: triplets.</p>
 </div>
 
 <div id="synth-view" class="view synth-view" hidden>
@@ -433,13 +434,13 @@
     <h3>Chains, knob movements and files</h3>
     <ul>
       <li><b>Sub-step</b>, in the step editor, plays a step in quick repeats, where <b>o</b> plays and <b>-</b> is silent.</li>
-      <li><b>Rec</b> records notes into the pattern from the input and channel chosen beside it: the Protein's own keys, another keyboard, or any input on any channel. While playing, notes land on the nearest step and last as long as you hold them, whatever <b>Length</b> is set to, and each time round the loop adds to what's there. A note you're still holding isn't played back over itself. They then play back on the Protein like any other steps. While stopped, each key adds a note, as long as <b>Length</b> sets, or one step with Length Off, and moves on a step, starting from the chosen step. Undo takes back the whole take.</li>
+      <li><b>Rec</b> records notes into the pattern from the input and channel chosen beside it: the Protein's own keys, another keyboard, or any input on any channel. While playing, notes land exactly where you play them, or on the nearest step with <b>Snap to steps</b> chosen beside Rec, and end where you let go: they last as long as you hold them, whatever <b>Length</b> is set to, and each time round the loop adds to what's there. A note you're still holding isn't played back over itself. They then play back on the Protein like any other steps. While stopped, each key adds a note, as long as <b>Length</b> sets, or one step with Length Off, and moves on a step, starting from the chosen step. Undo takes back the whole take.</li>
       <li><b>Click</b> plays a metronome click on each beat while the pattern plays, louder on the first beat of each bar. It comes from this computer's speakers, not the instrument, and stays on or off for next time.</li>
       <li>While recording, notes from another keyboard are passed on to the Protein so you hear them. If MIDI Hub is also routing that keyboard to the Protein, you'll hear each note twice, so choose one.</li>
       <li><b>Chain</b> takes pattern numbers such as <b>1 1 2 3</b>. Tick <b>On</b> and Play goes through them in order, looping.</li>
       <li><b>Knobs</b> opens a lane under the grid to draw how a mapped setting moves through the pattern, on any layer: the list names each setting's layer first. Alt-drag erases, and <b>Copy all to</b> copies the movements to another pattern.</li>
       <li>Patterns 1-16 are stored in this browser. <b>Back up</b> saves them with your saved sounds and mappings to one file, and <b>Restore</b> loads it back. <b>Export MIDI</b> and <b>Import MIDI</b> work with one pattern at a time.</li>
-      <li><b>Sync</b> plays this page together with the other grids, S-1 Grid, Protein Grid, Bass Station Grid, MPC Grid and TD-3 Grid, when they're open in the same browser, each with its MIDI connected and Sync ticked. Pressing Play or Stop on any of them starts or stops them all, from the start of their patterns, at the tempo of the page you pressed, and changing the BPM on one changes them all. The badge beside Sync shows which pages are linked. <a href="https://pzuzarte.github.io/song-grid/" target="song-grid">Song Grid</a> arranges their patterns into a song and plays them through Sync. The <b>Tools</b> menu at the top opens any of them.</li>
+      <li><b>Sync</b> plays this page together with the other grids, S-1 Grid, Protein Grid, Bass Station Grid, MPC Grid and TD-3 Grid, when they're open in the same browser, each with its MIDI connected and Sync ticked. Pressing Play or Stop on any of them starts or stops them all, from the start of their patterns, at the tempo of the page you pressed, and changing the BPM on one changes them all. The badge beside Sync shows which pages are linked. Sync starts off each time the page opens, so tick it to link the page. <a href="https://pzuzarte.github.io/song-grid/" target="song-grid">Song Grid</a> arranges their patterns into a song and plays them through Sync. The <b>Tools</b> menu at the top opens any of them.</li>
       <li><b>Send clock</b> sends MIDI clock with playback. With <b>Sync Source</b> set to Extern in the Protein's settings, its arpeggiator, sequencer and clocked LFOs follow this page's tempo.</li>
     </ul>
 
@@ -452,15 +453,15 @@
   </div>
 </dialog>
 
-<script src="music.js?v=202611232240"></script>
-<script src="params.js?v=202611232240"></script>
-<script src="dump.js?v=202611232240"></script>
-<script src="library.js?v=202611232240"></script>
-<script src="folder.js?v=202611232240"></script>
-<script src="sync.js?v=202611232240"></script>
-<script src="backup.js?v=202611232240"></script>
-<script src="recorder.js?v=202611232240"></script>
-<script src="app.js?v=202611232240"></script>
+<script src="music.js?v=202611232252"></script>
+<script src="params.js?v=202611232252"></script>
+<script src="dump.js?v=202611232252"></script>
+<script src="library.js?v=202611232252"></script>
+<script src="folder.js?v=202611232252"></script>
+<script src="sync.js?v=202611232252"></script>
+<script src="backup.js?v=202611232252"></script>
+<script src="recorder.js?v=202611232252"></script>
+<script src="app.js?v=202611232252"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {

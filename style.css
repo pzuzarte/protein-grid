@@ -340,3 +340,6 @@ header.bar { gap: 6px 10px; }
 .theme-toggle { min-width: 2.2em; font-size: 1.05em; line-height: 1; }
 
 .pattern-sound select { max-width: 14em; }
+
+/* A note name being held down. */
+.held { background: var(--accent) !important; color: var(--accent-text) !important; }
