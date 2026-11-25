@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Protein Grid</title>
-<link rel="stylesheet" href="style.css?v=202611240920">
+<link rel="stylesheet" href="style.css?v=202611251300">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
   try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("protein-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -158,8 +158,8 @@
       <button id="octave-up" type="button" title="Move every note in this pattern up an octave" aria-label="Octave up">Oct +</button>
     </div>
     <div class="button-pair">
-      <button id="copy" type="button" title="Copy the chosen steps. Choose them by clicking or dragging along the step numbers.">Copy</button>
-      <button id="paste" type="button" title="Paste at the chosen step, replacing what's there, in this pattern or another" disabled>Paste</button>
+      <button id="copy" type="button" title="Copy the chosen steps, or the whole pattern if none are chosen. Choose steps by clicking or dragging along the step numbers. It can be pasted here or in S-1, TD-3, Bass Station or Protein Grid.">Copy</button>
+      <button id="paste" type="button" title="Paste what was copied last in any of the grids at the chosen step, or at the start, replacing what's there" disabled>Paste</button>
     </div>
     <label title="Sets velocity on the chosen steps, or the whole pattern if none are chosen">Velocity
       <input id="bulk-velocity" type="number" min="1" max="127" step="1" value="100">
@@ -420,7 +420,7 @@
       <li><b>Draw</b> places a single note, a power chord, a triad or a 7th, using notes from the key.</li>
       <li><b>Idea</b> and <b>Generate</b> write a bassline, melody, arpeggio or chord pattern in the key, and <b>Undo</b> brings back the old one.</li>
       <li><b>Shift</b> moves the whole pattern a step earlier or later, <b>Scale</b> moves every note a step through the scale, and <b>Oct</b> moves them an octave.</li>
-      <li>Click or drag along the <b>step numbers</b> to choose steps, then <b>Copy</b> and <b>Paste</b>. <b>Velocity</b> and <b>Set</b> change the chosen steps, or the whole pattern.</li>
+      <li>Click or drag along the <b>step numbers</b> to choose steps, then <b>Copy</b> and <b>Paste</b>. With no steps chosen, Copy takes the whole pattern and Paste puts it at the start. They work between S-1, TD-3, Bass Station and Protein Grid too, open in the same browser: copy in one and paste in another. A TD-3's accents and slides don't come across. <b>Velocity</b> and <b>Set</b> change the chosen steps, or the whole pattern.</li>
     </ul>
 
     <h3>Mouse and keyboard</h3>
@@ -461,16 +461,17 @@
   </div>
 </dialog>
 
-<script src="music.js?v=202611240920"></script>
-<script src="params.js?v=202611240920"></script>
-<script src="dump.js?v=202611240920"></script>
-<script src="library.js?v=202611240920"></script>
-<script src="named-file.js?v=202611240920"></script>
-<script src="folder.js?v=202611240920"></script>
-<script src="sync.js?v=202611240920"></script>
-<script src="backup.js?v=202611240920"></script>
-<script src="recorder.js?v=202611240920"></script>
-<script src="app.js?v=202611240920"></script>
+<script src="music.js?v=202611251300"></script>
+<script src="params.js?v=202611251300"></script>
+<script src="dump.js?v=202611251300"></script>
+<script src="library.js?v=202611251300"></script>
+<script src="named-file.js?v=202611251300"></script>
+<script src="folder.js?v=202611251300"></script>
+<script src="sync.js?v=202611251300"></script>
+<script src="backup.js?v=202611251300"></script>
+<script src="recorder.js?v=202611251300"></script>
+<script src="pattern-clipboard.js?v=202611251300"></script>
+<script src="app.js?v=202611251300"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {
