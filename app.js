@@ -2132,7 +2132,7 @@ function renderPatterns() {
   const shown = ready ? patterns.items.filter((item) => words.every((word) => item.name.toLowerCase().includes(word))) : [];
   $("patterns-empty").hidden = ready && shown.length > 0;
   $("patterns-empty").textContent = !ready
-    ? "Patterns are saved in the library folder too. Choose it above."
+    ? "Patterns are saved in the library folder too. Click Choose library folder, beside Save."
     : patterns.items.length
       ? "No saved patterns match that search."
       : "No saved patterns yet. Save, beside the pattern's name on the Grid tab, saves the one you're on, and Save as asks where.";
@@ -2184,9 +2184,9 @@ function libraryReady() {
   if (library.status === "ready") return true;
   const advice = {
     unsupported: "Saving sounds needs a library folder, which needs Chrome or Edge on a computer.",
-    permission: "Click Allow library folder on the Library tab first, so the page can save to it.",
-    missing: "The library folder can't be found. Click Choose library folder on the Library tab.",
-    none: "Click Choose library folder on the Library tab first, to pick where your sounds are saved.",
+    permission: "Click Allow library folder, beside Save, first, so the page can save to it.",
+    missing: "The library folder can't be found. Click Choose library folder, beside Save.",
+    none: "Click Choose library folder, beside Save, first, to pick where your sounds are saved.",
   };
   setStatus(advice[library.status], true);
   return false;
@@ -2485,8 +2485,7 @@ function renderLibrary() {
     missing: ["Choose library folder", `Couldn't read "${library.folder?.name}". Choose it again.`],
     ready: ["Change folder", ""],
   }[library.status];
-  $("library-folder").textContent = folderState[0];
-  $("library-folder").disabled = library.status === "unsupported";
+  LibraryButton.render($("library-folder"), $("library-where"), library.status, library.folder?.name);
   const skipped = library.skipped ? ` ${library.skipped} files there aren't single Protein sounds, so they're left out.` : "";
   $("library-state").textContent = ready ? `"${library.folder.name}": ${plural(library.items.length, "sound")}.${skipped}` : folderState[1];
   for (const id of ["library-add", "library-capture", "library-import", "library-export-all", "library-search"]) $(id).disabled = !ready;
