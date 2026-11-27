@@ -363,3 +363,6 @@ button.pattern-name.untitled { color: var(--muted); }
 .grid-title:hover { border-color: var(--line); }
 .grid-title .number { color: var(--muted); font-weight: 400; }
 .grid-title.untitled .name { color: var(--muted); font-weight: 400; font-style: italic; }
+
+/* Favourites and tags, under each search. See library-tags.js. */
+.library-tags { margin: 6px 0; }

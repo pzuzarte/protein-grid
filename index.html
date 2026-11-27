@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Protein Grid</title>
-<link rel="stylesheet" href="style.css?v=202611251300">
+<link rel="stylesheet" href="style.css?v=202611261900">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
   try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("protein-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -293,14 +293,15 @@
     <p id="library-state" class="library-note"></p>
     <p class="library-note">Whole sounds, exactly as the Protein sent them, each saved as a .syx file in your library folder. <b>Add from Protein</b> waits for you to press Presets, open the Actions menu and choose Send on the Protein. <b>Capture presets</b> keeps listening, so you can step through the presets sending each one. <b>Load settings</b> sends a sound's mapped settings, which works once Teach reading is done. <b>Send whole sound</b> sends the complete dump back. That hasn't been tried on a Protein yet.</p>
     <div class="search-row">
-      <input id="library-search" type="search" placeholder="Search names" aria-label="Search sounds" spellcheck="false">
-      <button id="favourites-only" class="toggle" type="button" aria-pressed="false" title="Show only your favourite sounds">&#9733; Favourites</button>
+      <input id="library-search" type="search" placeholder="Search names and tags" aria-label="Search sounds" spellcheck="false">
     </div>
+    <div id="sound-tags" class="tag-bar library-tags" role="group" aria-label="Show only favourite sounds, or those with a tag"></div>
     <p id="library-empty" class="library-note">No sounds in this folder yet. Add one from the Protein, or import a .syx file.</p>
     <ul id="library-list" class="library-list"></ul>
 
     <h2 class="patterns-title">Patterns</h2>
-    <input id="pattern-search" type="search" placeholder="Search patterns" aria-label="Search patterns" spellcheck="false">
+    <input id="pattern-search" type="search" placeholder="Search patterns and tags" aria-label="Search patterns" spellcheck="false">
+    <div id="pattern-tags" class="tag-bar library-tags" role="group" aria-label="Show only favourite patterns, or those with a tag"></div>
     <p id="patterns-empty" class="library-note"></p>
     <ul id="pattern-list" class="library-list"></ul>
   </section>
@@ -410,7 +411,7 @@
       <li>The bar at the top of the Grid tab shows the name of the pattern you're on, large. <b>Save</b> (Cmd+S) saves it to its file again, under the same name, with its notes, bars, knob movements, tempo and sound. The first time, and with <b>Save as&hellip;</b> (Cmd+Shift+S), the Mac's Save dialog asks for a name and a folder. It starts in the library folder's <b>Patterns</b> folder, then in wherever you saved last. <b>Open&hellip;</b> opens a pattern file from anywhere into the pattern you're on. <b>Saved patterns</b> goes to the patterns in the library folder on the Library tab, where <b>Load</b> puts one into the pattern you're on. A pattern you load from there or open saves back to its own file. <b>Duplicate</b> makes a copy that doesn't, so its first Save asks where. Undo brings back what was there before a load.</li>
       <li>The library keeps whole sounds, every setting and layer, exactly as the Protein sent them. It's a folder on this computer that you choose with <b>Choose library folder</b>, and each sound is saved there as its own .syx file, named after the sound. That keeps them even if the browser's data is cleared, and your usual backups include them. Where each came from is kept in <b>library-info.json</b> in the same folder. After Chrome restarts, click <b>Allow library folder</b> to use it again.</li>
       <li>This is separate from <b>Save sound</b> on the Synth tab, which only keeps the mapped settings, in this browser.</li>
-      <li><b>Add from Protein</b> waits for a sound. On the Protein, press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. The file is named after the sound, and <b>Rename</b> renames the file, not the sound on the Protein. Click the star beside a sound to make it a favourite, and <b>Favourites</b> beside the search shows only those. Favourites are kept in library-info.json in the library folder, so they stay with your sounds. .syx files you put in the folder yourself show up too.</li>
+      <li><b>Add from Protein</b> waits for a sound. On the Protein, press <b>Presets</b>, open the Actions menu and choose <b>Send</b>. The file is named after the sound, and <b>Rename</b> renames the file, not the sound on the Protein. Click the star beside a sound or a saved pattern to make it a favourite, and <b>Tags</b> to give it tags, words or short phrases separated by commas, such as "warm, bass". Under each search, <b>&#9733; Favourites</b> and a button for each tag you use show only those, and you can pick several tags to narrow it further. The search finds tags too. Favourites and tags are kept in library-info.json in the library folder, so they stay with your sounds and patterns wherever the folder goes, and Song Grid's Add list shows and filters them the same way. .syx files you put in the folder yourself show up too.</li>
       <li><b>Capture presets</b> fills the library with the Protein's presets, its factory ones included. The Protein can't be asked for its sounds, so it needs a Send for each: click <b>Capture presets</b>, then on the Protein choose a preset, press <b>Presets</b>, open the Actions menu and choose <b>Send</b>, and go on to the next. Each is saved as it arrives, named after the sound. Sounds already in the library are skipped, and the count shows how many were saved. If one doesn't arrive whole, it isn't saved, and the status says so: send it again. Click <b>Stop capture</b> when you're done. The Protein sends presets from slot 117 up with nothing in them, even when they hold a sound, so to capture one of those, save it into a free slot at 116 or below on the Protein and send it from there.</li>
       <li><b>Load settings</b> sends the sound's mapped settings as controllers, and shows them on the Synth tab. It needs <b>Teach reading</b> to have been done. Settings that aren't mapped stay as they are on the Protein.</li>
       <li><b>Send whole sound</b> sends the complete dump back to the Protein. This hasn't been tried on a Protein yet. It may replace the sound you're playing, and it isn't known whether it also writes over a memory slot, so keep a copy of anything you want first.</li>
@@ -474,9 +475,10 @@
 <script src="backup.js?v=202611251300"></script>
 <script src="recorder.js?v=202611251300"></script>
 <script src="pattern-clipboard.js?v=202611251530"></script>
+<script src="library-tags.js?v=202611261900"></script>
 <script src="library-button.js?v=202611261400"></script>
 <script src="grid-icons.js?v=202611261000"></script>
-<script src="app.js?v=202611261400"></script>
+<script src="app.js?v=202611261900"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {
