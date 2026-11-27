@@ -3134,7 +3134,7 @@ function catalog() {
       ...(Object.keys(state.values).length ? [{ id: "current", label: "The settings in the controls", meta: "As they are now" }] : []),
       ...(ready ? library.items.map((item) => ({ id: `lib:${item.name}`, label: item.name, meta: "Mapped settings", favourite: isFavourite(item) })) : []),
     ],
-    note: ready ? "" : "Choose the library folder in Protein Grid to pick from its saved patterns and sounds too.",
+    note: LibraryButton.songNote(library.status, "Protein Grid", "saved patterns and sounds"),
   };
 }
 
